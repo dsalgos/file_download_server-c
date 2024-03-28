@@ -5,7 +5,7 @@ A server program capable of serving to multiple clients tried to process and dow
 
 
 1. serverw process which serves file processing and download request.
-	-- Continuously listen to client request.
+	-- Continuously listen_sckt to client request.
 	-- Must be able to cater multiple clients.
 	-- uses fork() and method CREQUEST() function to process the request.
 	-- use only SOCKETS for the communication channel.	
@@ -20,7 +20,7 @@ A server program capable of serving to multiple clients tried to process and dow
 2. Multiple instances of the same server process to be run on different machines. The server names are: server, mirror1, mirror2
 
 
-3. Client process continuously listen to user input,
+3. Client process continuously listen_sckt to user input,
 
 	Action on commands
 	-- verify the command syntax
