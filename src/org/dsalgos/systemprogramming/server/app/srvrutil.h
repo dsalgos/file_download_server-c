@@ -5,14 +5,14 @@
 #ifndef FILE_DOWNLOAD_SERVER_SRVRUTIL_H
 #define FILE_DOWNLOAD_SERVER_SRVRUTIL_H
 
-#define MAX_BUFFER_SIZE 1024 // max buffer size for reading or writing the data from the Live socket.
-#define MAX_QUEUE_SIZE 100 //defining the number of request queued, before rejection triggers.
+#define MAX_BUFFER_RR_SIZE 1024 // max buffer size for reading or writing the data from the Live socket.
+#define MAX_QUEUE_SIZE 50 //defining the number of request queued, before rejection triggers.
 #define _XOPEN_SOURCE 500
 #define PORT 8080
 #define MIRROR_PORT 7001
 
-char request[MAX_BUFFER_SIZE];
-char response[MAX_BUFFER_SIZE];
+char request[MAX_BUFFER_RR_SIZE];
+char response[MAX_BUFFER_RR_SIZE];
 
 #endif //FILE_DOWNLOAD_SERVER_SRVRUTIL_H
 
@@ -44,7 +44,7 @@ int init_server(int *fd_server, struct sockaddr_in address_srvr);
 //integer return
 int is_linux();
 int process_request(int fd_sckt);
-int send_msg(int sckt_id, char* msg);
+int send_msg(int fd_sckt, char* msg);
 int bind_address();
 int listen_sckt();
 
@@ -63,7 +63,7 @@ int init_server(int *fd_server, struct sockaddr_in address_srvr) {
     }
 
     // Attach socket to the port 8080
-    if (setsockopt(*fd_server, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt)) < 0)
+    if (setsockopt(*fd_server, SOL_SOCKET, SO_REUSEADDR /*| SO_REUSEPORT*/, &opt, sizeof(opt)) < 0)
     {
         perror("setsockopt");
         exit(EXIT_FAILURE);
@@ -84,5 +84,16 @@ int init_server(int *fd_server, struct sockaddr_in address_srvr) {
         exit(EXIT_FAILURE);
     }
 
+    return 0;
+}
+
+
+int send_msg(int fd_sckt, char* msg) {
+    printf("Sending message...");
+    return 0;
+}
+
+int process_request(int fd_sckt) {
+    printf("processing the request...");
     return 0;
 }

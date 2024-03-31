@@ -60,21 +60,21 @@ void start_server(const struct sockaddr_in address_srvr, int fd_srvr) {
 
                 // call process client function
                 process_request(fd_sckt);
+                exit(EXIT_SUCCESS);
             }
             else if (pid == -1)
             {
                 // else failed to fork
                 // error
-                perror("Failed to fork a child");
-                exit(EXIT_FAILURE);
+                perror("Error processing client request");
+                exit(EXIT_SUCCESS_CODE);
             }
             else
             {
                 // parent process
                 close(fd_sckt);
 
-                while (waitpid(-1, NULL, WNOHANG) > 0)
-                    ; // clean up zombie processes
+                while (waitpid(-1, NULL, WNOHANG) > 0); // clean up zombie processes
             }
         }
         else

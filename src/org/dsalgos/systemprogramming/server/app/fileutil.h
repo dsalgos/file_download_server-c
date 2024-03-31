@@ -4,7 +4,7 @@
 
 #ifndef FILE_DOWNLOAD_SERVER_FILEUTIL_H
 #define FILE_DOWNLOAD_SERVER_FILEUTIL_H
-#define MAX_BUFFER_SIZE 256
+#define MAX_BUFFER_FILE_SIZE 256
 
 #endif //FILE_DOWNLOAD_SERVER_FILEUTIL_H
 
@@ -50,16 +50,16 @@ int is_txt_file(const char* f_name) {
 int copy_file(const int fd_src, const int fd_dest) {
 
 
-    //creating a buffer, of size MAX_BUFFER_SIZE
-    char* buffer = malloc(sizeof(char)* MAX_BUFFER_SIZE);
+    //creating a buffer, of size MAX_BUFFER_FILE_SIZE
+    char* buffer = malloc(sizeof(char) * MAX_BUFFER_FILE_SIZE);
 
     //now, let's start the process of reading the data from the src file
     //read until there is nothing to be read or written.
     while(1) {
-        long int rb = read(fd_src, buffer, MAX_BUFFER_SIZE);
+        long int rb = read(fd_src, buffer, MAX_BUFFER_FILE_SIZE);
         if(rb <=0) break;
 
-        long int wb = write(fd_dest, buffer, MAX_BUFFER_SIZE);
+        long int wb = write(fd_dest, buffer, MAX_BUFFER_FILE_SIZE);
         if(wb <= 0) break;
     }
 
