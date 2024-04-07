@@ -34,9 +34,12 @@ void start_server(const struct sockaddr_in address_srvr, int fd_srvr) {
     // wait in infinite loop to accept the client input
     while (1)
     {
+        //TODO:
+//        if(errno == ) check if the connection has been reset by the peer.
         if ((fd_sckt = accept(fd_srvr, (struct sockaddr *)&address_srvr, (socklen_t *)&sckt_address_len)) < 0)
         {
             perror("Error in accept");
+//            sendfile();
             exit(EXIT_FAILURE);
         }
 

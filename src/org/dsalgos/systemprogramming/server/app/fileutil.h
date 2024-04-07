@@ -5,6 +5,7 @@
 #ifndef FILE_DOWNLOAD_SERVER_FILEUTIL_H
 #define FILE_DOWNLOAD_SERVER_FILEUTIL_H
 #define MAX_BUFFER_FILE_SIZE 256
+#define MAX_BUFFER_NAME 128
 
 #endif //FILE_DOWNLOAD_SERVER_FILEUTIL_H
 
@@ -14,7 +15,9 @@
 #include <stdlib.h>
 #include <sys/utsname.h>
 #include <unistd.h>
-
+#include <dirent.h>
+#include <sys/stat.h>
+#include "dentry.h"
 
 
 //constant literals
@@ -27,6 +30,7 @@ int is_txt_file(const char* f_name);
 int copy_file(int fd_src, int fd_dest);
 int open_file(const char* f_path, int oargs);
 char* expand_if_tilda(char *command);
+int list_dir_sort_by_name(char *d_path, char** list);
 
 int is_txt_file(const char* f_name) {
     size_t filename_len = strlen(f_name);
@@ -77,6 +81,22 @@ int open_file(const char* f_path, const int oargs) {
     return open(f_path, oargs, 0777);
 }
 
+int d_compare_modified(const void *x_time, const void *y_time) {
+    const struct dentry *entry1 = (const struct dentry *)x_time;
+    const struct dentry *entry2 = (const struct dentry *)y_time;
+
+    return difftime(entry1->stat.st_mtimespec.tv_nsec, entry2->stat.st_mtimespec.tv_nsec);
+}
+
+DIR* open_dir(const char *d_path) {
+    DIR  *_d = opendir(d_path);
+    if(_d == NULL) {
+        perror("error opening directory");
+    }
+
+    return _d;
+}
+
 int is_linux() {
     struct utsname buffer;
 
@@ -124,4 +144,62 @@ char* expand_if_tilda(char *command) {
     }
     exp_command[i] = C_NULL;
     return exp_command;
+}
+
+/**
+ *
+ * @param d_path path to the root directory, where the
+ * @param list the final list which contains list of names of subdirectories as part of @d_path
+ * @param sort_compare pointer the function used for sorting the elements in the list
+ * @return
+ */
+int list_dir_sort(char* d_path, char** list, int (*sort_compare)(const void*, const void*)) {
+
+    if(sort_compare == NULL) {
+        sort_compare = (int (*)(const void *, const void *))strcmp;
+    }
+
+    //try to open the directory entry
+    DIR *_d = open_dir(d_path);
+    struct stat e_stat;
+    struct dirent *ptr_file;
+
+    // check if the _d directory is opened or not.
+    if(_d != NULL) {
+        int i_count=0;
+        //skip the local dir and parent directory.
+        while((ptr_file = readdir(_d)) != NULL
+              && !(strcmp(ptr_file->d_name, ".") ==0
+                   || strcmp(ptr_file->d_name, "..") ==0)) {
+
+            stat(ptr_file->d_name, &e_stat);
+            if(S_ISDIR(e_stat.st_mode)) {
+                list[i_count] = malloc(strlen(ptr_file->d_name)+1); //+1 for '\0' char character
+                if(list[i_count] != NULL) {
+                    strcpy(list[i_count], ptr_file->d_name);
+                    ++i_count;
+                }
+            }
+        }
+
+        //now as we have the list of all the directories present in the home directory
+        //we need to sort the list by directory name in alphabetical order
+        qsort(*list, i_count, sizeof(char *), sort_compare);
+        return i_count;
+    }
+
+    return 0;
+
+}
+
+/**
+ *
+ * @param d_path
+ * @param list
+ * @return
+ */
+int list_dir_sort_by_name(char *d_path, char** list) {
+
+
+    return 0;
 }
