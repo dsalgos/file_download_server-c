@@ -31,6 +31,15 @@ char response[MAX_BUFFER_RR_SIZE];
 #include <stdbool.h>
 #include <limits.h>
 
+//command literals
+char* CMD_LIST_DIR_SRTD_NAME = "dirlist -a";
+char* CMD_LIST_DIR_SRTD_MTIME = "dirlist -t";
+char* CMD_FILE_SRCH_NAME = "w24fs";
+char* CMD_FILE_SRCH_SIZE = "w24fz";
+char* CMD_FILE_SRCH_EXT = "w24ft";
+char* CMD_FILE_SRCH_DATE = "w24fdb";
+char* CMD_CLIENT_QUIT = "quit";
+
 
 /**
  *
