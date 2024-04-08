@@ -1,12 +1,10 @@
 //
 // Created by Anuj Puri on 2024-03-28.
 //
-
 #ifndef FILE_DOWNLOAD_SERVER_FILEUTIL_H
 #define FILE_DOWNLOAD_SERVER_FILEUTIL_H
 #define MAX_BUFFER_FILE_SIZE 256
 #define MAX_BUFFER_NAME 128
-
 #endif //FILE_DOWNLOAD_SERVER_FILEUTIL_H
 
 #include <string.h>
@@ -23,6 +21,7 @@
 
 // USER IMPORTS
 #include "dentry.h"
+#include "fdetails.h"
 #include "stringutils.h"
 
 
@@ -64,6 +63,8 @@ int copy_file(int fd_src, int fd_dest);
 int open_file(const char* f_path, int oargs);
 int list_dir_sort(char *d_path, struct dentry** list, int (*sort_compare)(const void*, const void*));
 int f_callback_bsize(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw);
+int callback_f_name(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw);
+unsigned long ufs_ctime = 0;
 
 //string returning functions.
 char* expand_if_tilda(char *command);
@@ -71,6 +72,8 @@ char* expand_if_tilda(char *command);
 
 //function pointer
 void (*fn_cp_handle)(const char* , const char*);
+int (*f_cdate_cmp)(unsigned long fs_ctime, unsigned long ufs_ctime);
+
 
 /**
  * This function implements the requirement of searching a given file name inside the
@@ -96,8 +99,8 @@ char* file_search(const char* root_path, const char* file_name, int (*f_callback
     f_path_tracker = malloc(sizeof(char) * PATH_MAX);
 
     //hate the null checks but need it...
-    if(root_path == NULL) {
-        printf("\n%s", " invalid arguments supplied, operation failed.");
+    if(root_path == NULL || f_callback == NULL || file_name == NULL) {
+        perror("invalid arguments supplied, operation failed.");
         exit(CODE_ERROR_APP);
     }
 
@@ -144,8 +147,6 @@ int callback_f_name(const char *path_current, const struct stat *f_stat, int f_t
         //and then f_current contains the pointer to location
         //in a char* where the file_name starts.
         const char *f_current = path_current + ptr_struct_ftw->base;
-        const char* f_extension = strchr(path_current, c_extsn);
-
 
         if (user_input_file_name != NULL && f_current != NULL && strcmp(f_current, user_input_file_name) == 0) {
             //once the file is found, returning non-zero value to stop the traversal.
@@ -176,6 +177,103 @@ int callback_f_name(const char *path_current, const struct stat *f_stat, int f_t
  * @return
  */
 int f_callback_bsize(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw) {
+    if(f_type == FTW_F) {
+
+        //use the base to find the current file name, add base to f_current address
+        //FTW is a structure, where base is a member variable
+        //base contains the location of the base file_name
+        //this is just a position, when you add base to path_current
+        //basically you are doing a pointer arithmetic operation
+        //and then f_current contains the pointer to location
+        //in a char* where the file_name starts.
+        const char *f_current = path_current + ptr_struct_ftw->base;
+
+        if(usr_f_extension == NULL || min_f_sz == NULL || max_f_sz == NULL) {
+            return 1;
+        }
+
+        if((f_stat->st_blksize >= *min_f_sz && f_stat->st_blksize <= *max_f_sz)) {
+            realpath(path_current, f_path_tracker);
+            printf("\n%s %s ", "Search successful. Absolute path is - ", f_path_tracker);
+
+            //if this function pointer is not NULL, that means the call is made to nftw() via
+            //f_extension_search, which indeed requires to not just find the files with provided extension
+            //but also process them to create a .tar file
+            //this function will help to copy all the files found as per extension match to a
+            //storage directory
+            if(fn_cp_handle != NULL && d_storg_path != NULL) {
+                strcat(d_storg_path, SYMBOL_FWD_SLASH);
+                unsigned long pos_slash = strlen(d_storg_path) -1;
+
+                strcat(d_storg_path, f_current);
+                printf("\n storage path : %s\n", d_storg_path);
+                fn_cp_handle(f_path_tracker, d_storg_path);
+
+                //putting a logic to reuse the existing string memory.
+                recycle_str(d_storg_path, pos_slash);
+                printf(" \nresuming storage path : %s\n", d_storg_path);
+            }
+
+            //not returning anything here. The search must be continued for all the files.
+            //in case of extension file search.
+
+        }
+    }
+
+    //Returning '0' so that nftw() contrinues the traversal to find the file.
+    return 0;
+}
+
+int f_callback_db(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw) {
+    if(f_type == FTW_F) {
+
+        //use the base to find the current file name, add base to f_current address
+        //FTW is a structure, where base is a member variable
+        //base contains the location of the base file_name
+        //this is just a position, when you add base to path_current
+        //basically you are doing a pointer arithmetic operation
+        //and then f_current contains the pointer to location
+        //in a char* where the file_name starts.
+        const char *f_current = path_current + ptr_struct_ftw->base;
+
+        if(usr_f_extension == NULL || f_cdate_cmp == NULL) {
+            return 1;
+        }
+
+        if(f_cdate_cmp(f_stat->st_ctimespec.tv_nsec, ufs_ctime)) {
+            realpath(path_current, f_path_tracker);
+            printf("\n%s %s ", "Search successful. Absolute path is - ", f_path_tracker);
+
+            //if this function pointer is not NULL, that means the call is made to nftw() via
+            //f_extension_search, which indeed requires to not just find the files with provided extension
+            //but also process them to create a .tar file
+            //this function will help to copy all the files found as per extension match to a
+            //storage directory
+            if(fn_cp_handle != NULL && d_storg_path != NULL) {
+                strcat(d_storg_path, SYMBOL_FWD_SLASH);
+                unsigned long pos_slash = strlen(d_storg_path) -1;
+
+                strcat(d_storg_path, f_current);
+                printf("\n storage path : %s\n", d_storg_path);
+                fn_cp_handle(f_path_tracker, d_storg_path);
+
+                //putting a logic to reuse the existing string memory.
+                recycle_str(d_storg_path, pos_slash);
+                printf(" \nresuming storage path : %s\n", d_storg_path);
+            }
+
+            //not returning anything here. The search must be continued for all the files.
+            //in case of extension file search.
+
+        }
+    }
+
+    //Returning '0' so that nftw() contrinues the traversal to find the file.
+    return 0;
+}
+
+
+int f_callback_da(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw) {
     if(f_type == FTW_F) {
 
         //use the base to find the current file name, add base to f_current address
@@ -407,7 +505,8 @@ char* expand_if_tilda(char *command) {
 }
 
 /**
- *
+ * Implementation of "dirlist" command, to get teh list of files from the directory @d_path.
+ * The list is sorted based on the comparator pased as @sort_compare, using qsort library function.
  * @param d_path path to the root directory, where the
  * @param list the final list which contains list of names of subdirectories as part of @d_path
  * @param sort_compare pointer the function used for sorting the elements in the list
@@ -421,11 +520,11 @@ int list_dir_sort(char* d_path, struct dentry** list, int (*sort_compare)(const 
 
     //try to open the directory entry
     DIR *_d = open_dir(d_path);
-    struct stat e_stat;
-    struct dirent *ptr_file;
 
     // check if the _d directory is opened or not.
     if(_d != NULL) {
+        struct stat e_stat;
+        struct dirent *ptr_file;
         int i_count=0;
         //skip the local dir and parent directory.
         while((ptr_file = readdir(_d)) != NULL
