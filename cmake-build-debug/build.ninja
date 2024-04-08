@@ -49,11 +49,11 @@ cmake_ninja_workdir = /Users/anujp/CLionProjects/file-download-server/cmake-buil
 
 build cmake_object_order_depends_target_file_download_server: phony || CMakeFiles/file_download_server.dir
 
-build CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/client/app/main.c.o: C_COMPILER__file_download_server_unscanned_Debug /Users/anujp/CLionProjects/file-download-server/src/org/dsalgos/systemprogramming/client/app/main.c || cmake_object_order_depends_target_file_download_server
-  DEP_FILE = CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/client/app/main.c.o.d
+build CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/server/app/server.c.o: C_COMPILER__file_download_server_unscanned_Debug /Users/anujp/CLionProjects/file-download-server/src/org/dsalgos/systemprogramming/server/app/server.c || cmake_object_order_depends_target_file_download_server
+  DEP_FILE = CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/server/app/server.c.o.d
   FLAGS = -g -std=gnu11 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX14.4.sdk -mmacosx-version-min=14.3 -fcolor-diagnostics
   OBJECT_DIR = CMakeFiles/file_download_server.dir
-  OBJECT_FILE_DIR = CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/client/app
+  OBJECT_FILE_DIR = CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/server/app
 
 
 # =============================================================================
@@ -63,7 +63,7 @@ build CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/clie
 #############################################
 # Link the executable file_download_server
 
-build file_download_server: C_EXECUTABLE_LINKER__file_download_server_Debug CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/client/app/main.c.o
+build file_download_server: C_EXECUTABLE_LINKER__file_download_server_Debug CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/server/app/server.c.o
   FLAGS = -g -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX14.4.sdk -mmacosx-version-min=14.3
   OBJECT_DIR = CMakeFiles/file_download_server.dir
   POST_BUILD = :

@@ -9,11 +9,19 @@
 
 #include <string.h>
 
-//string literals
+//constant literals
 const char C_SPACE = ' ';
+const char C_PERIOD = '.';
+const char C_NEW_LINE = '\n';
+const char C_NULL = '\0';
+const char C_TILDA = '~';
+
+const char* SYMBOL_FWD_SLASH = "/";
 
 //string returns
 char* trim(const char* str);
+int extcmp(const char* f_name, char* ext);
+
 
 /**
  * Utility function to remove the leading and trailing space
@@ -47,3 +55,32 @@ char* trim(const char* str) {
     return begin_str;
 }
 
+
+/**
+ * Check if the file contains the required extension.
+ * @param f_name name of the file
+ * @param ext extension to be compared.
+ * @return 0 if the files as extenstion @ext, else > 0, and -1 in case any of the arg is NULL.
+ */
+int extcmp(const char* f_name, char* ext) {
+
+    if(f_name == NULL || ext == NULL) {
+        return -1;
+    }
+
+    size_t filename_len = strlen(f_name);
+
+    // Ensure filename is at least 5 characters long (including ".txt")
+    if (filename_len < 5) {
+        return -1;  // Not a .txt file
+    }
+
+    size_t idx_period = strlen(f_name)-1;
+    for(;idx_period >= 0; idx_period--) {
+        if(f_name[idx_period] == C_PERIOD) {
+            break;
+        }
+    }
+    //comparing the characters starting from idx_period, include period symbol.
+    return strcmp(f_name + idx_period, ext);
+}

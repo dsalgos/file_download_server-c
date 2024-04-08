@@ -12,15 +12,3 @@ DIR* open_dir(const char *d_path) {
 
     return _d;
 }
-
-
-int main() {
-
-    DIR  *dir = open_dir(".");
-
-    if(dir == NULL) {
-        perror("opening dir failed.\n");
-    } else {
-        printf(" directory opened is --> %s\n", readdir(dir)->d_name);
-    }
-}
