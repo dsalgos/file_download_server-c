@@ -19,9 +19,9 @@
 #include "srvr_attributes.h"
 
 
-void start_server(const struct sockaddr_in address_srvr, int fd_srvr) {
+void start_server(const struct sockaddr_in address_srvr, int fd_sckt_srvr) {
 
-    int fd_sckt = 0, no_of_clients = 0;
+    int fd_clnt_sckt = 0, no_of_clients = 0;
     socklen_t sckt_address_len = sizeof(address_srvr);
 
     // waiting for client
@@ -31,7 +31,7 @@ void start_server(const struct sockaddr_in address_srvr, int fd_srvr) {
     {
         //TODO:
 //        if(errno == ) check if the connection has been reset by the peer.
-        if ((fd_sckt = accept(fd_srvr, (struct sockaddr *)&address_srvr, (socklen_t *)&sckt_address_len)) < 0)
+        if ((fd_clnt_sckt = accept(fd_sckt_srvr, (struct sockaddr *)&address_srvr, (socklen_t *)&sckt_address_len)) < 0)
         {
             perror("Error in accept");
 //            sendfile();
@@ -45,7 +45,9 @@ void start_server(const struct sockaddr_in address_srvr, int fd_srvr) {
         {
             /// handle by server
             // sedn control message to client "CTS(Connected to server)"
-            send_msg(fd_sckt, "CTS");
+            char** msg = malloc(sizeof(char*));
+            msg[0] = "CTS";
+            send_msg(fd_clnt_sckt, msg);
 
             printf("New connection from client: %s...\n", inet_ntoa(default_server_address.sin_addr));
 
@@ -54,10 +56,10 @@ void start_server(const struct sockaddr_in address_srvr, int fd_srvr) {
             if (pid == 0)
             {
                 // child process
-                close(fd_srvr);
+                close(fd_sckt_srvr);
 
                 // call process client function
-                process_request(fd_sckt);
+                process_request(fd_clnt_sckt);
                 exit(EXIT_SUCCESS);
             }
             else if (pid == -1)
@@ -70,7 +72,7 @@ void start_server(const struct sockaddr_in address_srvr, int fd_srvr) {
             else
             {
                 // parent process
-                close(fd_sckt);
+                close(fd_clnt_sckt);
 
                 while (waitpid(-1, NULL, WNOHANG) > 0); // clean up zombie processes
             }
@@ -90,16 +92,15 @@ void start_server(const struct sockaddr_in address_srvr, int fd_srvr) {
 
 int main(int argc, char* argv[]) {
 
-    int fd_server = -1, _ret_val;
+    int fd_sckt_srvr = -1, _ret_val;
 
-    _ret_val = init_server(&fd_server, default_server_address);
-    if(_ret_val < 0 || fd_server < 0) {
+    _ret_val = init_server(&fd_sckt_srvr, default_server_address);
+    if(_ret_val < 0 || fd_sckt_srvr < 0) {
         perror("server init setup failed : ");
         exit(EXIT_ERROR_CODE);
     }
 
-    start_server(default_server_address, fd_server);
-
+    start_server(default_server_address, fd_sckt_srvr);
 
     printf("Hello World !!");
     return 0;
