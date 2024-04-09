@@ -15,7 +15,6 @@
 
 //user header includes
 #include "srvrutil.h"
-#include "fileutil.h"
 #include "srvr_attributes.h"
 
 
