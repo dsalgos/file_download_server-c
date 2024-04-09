@@ -5,7 +5,10 @@
 #ifndef FILE_DOWNLOAD_SERVER_STRINNGUTILS_H
 #define FILE_DOWNLOAD_SERVER_STRINNGUTILS_H
 
+#define MAX_STR_TOKENS 20
+
 #endif //FILE_DOWNLOAD_SERVER_STRINNGUTILS_H
+
 
 #include <string.h>
 
@@ -17,7 +20,7 @@ const char C_NULL = '\0';
 const char C_TILDA = '~';
 
 const char* SYMBOL_FWD_SLASH = "/";
-
+const char* STR_SPACE = " ";
 //string returns
 char* trim(const char* str);
 int extcmp(const char* f_name, char* ext);
@@ -83,4 +86,19 @@ int extcmp(const char* f_name, char* ext) {
     }
     //comparing the characters starting from idx_period, include period symbol.
     return strcmp(f_name + idx_period, ext);
+}
+
+void strtoken(char* str, const char* delimiter, char** ret_vector) {
+    if(ret_vector == NULL) {
+        ret_vector = malloc(sizeof(char*) * MAX_STR_TOKENS);
+    }
+
+
+    char* tok = strtok(str, delimiter);
+    int tok_count = 0;
+    while(tok != NULL && tok_count < MAX_STR_TOKENS) {
+        printf(" token : %s\n", tok);
+        tok_count++;
+        tok = strtok(NULL, delimiter);
+    }
 }

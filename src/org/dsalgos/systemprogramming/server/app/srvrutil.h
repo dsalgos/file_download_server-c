@@ -46,7 +46,7 @@ char* CMD_FILE_SRCH_EXT = "w24ft";
 char* CMD_FILE_SRCH_DATE = "w24fdb";
 char* CMD_CLIENT_QUIT = "quit";
 
-void handle_listdir_rqst(const char* command, char** reponse);
+void handle_listdir_rqst(int fd, const char* command, char** reponse);
 
 /**
  *
@@ -85,6 +85,12 @@ int init_server(int *fd_server, struct sockaddr_in address_srvr) {
         exit(EXIT_FAILURE);
     }
 
+    /// Attributes for binding socket with IP and PORT
+    memset(&address_srvr, 0, sizeof(address_srvr));
+    address_srvr.sin_family = AF_INET;
+    address_srvr.sin_addr.s_addr = INADDR_ANY; // accepts any address
+    address_srvr.sin_port = htons(PORT);
+
     // Bind socket to the PORT
     if (bind(*fd_server, (struct sockaddr *)&address_srvr, sizeof(address_srvr)) < 0)
     {	//error
@@ -103,7 +109,7 @@ int init_server(int *fd_server, struct sockaddr_in address_srvr) {
     return 0;
 }
 
-void handle_listdir_rqst(const char* command, char** response) {
+void handle_listdir_rqst(int fd, const char* command, char** response) {
 
     if(command == NULL) { return; }
 
@@ -119,7 +125,7 @@ void handle_listdir_rqst(const char* command, char** response) {
     }
 
     if(ret_value != -1) {
-        response = malloc(sizeof(char*)  * (sizeof(list_dentry)));
+        response = malloc(sizeof(char*)  * sizeof(list_dentry));
         for(int i=0; list_dentry[i] != NULL; i++) {
             response[i] = calloc(sizeof(char)+2, strlen(list_dentry[i]->f_name));
 
@@ -127,10 +133,13 @@ void handle_listdir_rqst(const char* command, char** response) {
             strcpy(response[i], list_dentry[i]->f_name);
             strcpy(response[i]+ strlen(list_dentry[i]->f_name), "\n");
         }
+
+        send_msg(fd, response);
     }
 
+
     free(dir_home);
-    free(list_dentry);
+    free_array((void **) list_dentry);
     free_array((void **) response);
 }
 
@@ -176,10 +185,14 @@ int process_request(int fd_clnt_sckt) {
         perror("error reading request");
     }
 
+    strtok(rqst, STR_SPACE);
+
     printf("Request : %s\n", rqst);
     char** response = NULL;
     if(strcmp(rqst, CMD_LIST_DIR_SRTD_NAME) == 0) {
-       handle_listdir_rqst(CMD_LIST_DIR_SRTD_NAME, response);
+       handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_NAME, response);
+    } else if(strcmp(rqst, CMD_LIST_DIR_SRTD_MTIME) == 0) {
+        handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_MTIME, response);
     }
 
     free(rqst);
