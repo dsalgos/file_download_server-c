@@ -46,7 +46,11 @@ char* CMD_FILE_SRCH_EXT = "w24ft";
 char* CMD_FILE_SRCH_DATE = "w24fdb";
 char* CMD_CLIENT_QUIT = "quit";
 
-void handle_listdir_rqst(int fd, const char* command, char** reponse);
+void handle_listdir_rqst(int fd, const char* command, char** response);
+void handle_fs_name(int fd);
+void handle_fs_size(int fd);
+void handle_fs_date(int fd);
+
 
 /**
  *
@@ -58,7 +62,6 @@ void handle_listdir_rqst(int fd, const char* command, char** reponse);
 int init_server(int *fd_server, struct sockaddr_in address_srvr);
 
 //integer return
-int is_linux();
 int process_request(int fd_clnt_sckt);
 int send_msg(int fd_sckt, char** msg);
 int bind_address();
@@ -108,6 +111,8 @@ int init_server(int *fd_server, struct sockaddr_in address_srvr) {
 
     return 0;
 }
+
+
 
 void handle_listdir_rqst(int fd, const char* command, char** response) {
 
@@ -174,7 +179,8 @@ int send_msg(int fd_sckt, char** msg) {
 }
 
 /**
- *
+ * Processing the client request. This untility function is expected
+ * to be called
  * @param fd_clnt_sckt file descriptor for client connection socket
  * @return 0 if the request is processed successfully, -1 otherwise.
  */
@@ -186,6 +192,12 @@ int process_request(int fd_clnt_sckt) {
     }
 
     strtok(rqst, STR_SPACE);
+    int num_tokens;
+    char** cmd_vector = tokenize(rqst, C_SPACE, &num_tokens);
+    if(cmd_vector == NULL || num_tokens < 2) {
+        perror("error tokenizing request");
+        return -1;
+    }
 
     printf("Request : %s\n", rqst);
     char** response = NULL;
@@ -193,9 +205,20 @@ int process_request(int fd_clnt_sckt) {
        handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_NAME, response);
     } else if(strcmp(rqst, CMD_LIST_DIR_SRTD_MTIME) == 0) {
         handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_MTIME, response);
+    } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_NAME) == 0) {
+        handle_fs_name(fd_clnt_sckt);
+    } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_SIZE) == 0) {
+        handle_fs_size(fd_clnt_sckt);
+    } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_DATE) == 0) {
+        handle_fs_date(fd_clnt_sckt);
+    } else if(strcmp(cmd_vector[0], CMD_CLIENT_QUIT) == 0) {
+        close(fd_clnt_sckt);
+        exit(EXIT_SUCCESS);
     }
 
+    //free up the memory
     free(rqst);
     free_array((void **) response);
+    free_array((void **) cmd_vector);
     return 0;
 }

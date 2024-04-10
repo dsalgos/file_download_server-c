@@ -72,7 +72,6 @@ void start_server(const struct sockaddr_in address_srvr, int fd_sckt_srvr) {
             {
                 // parent process
                 close(fd_clnt_sckt);
-
                 while (waitpid(-1, NULL, WNOHANG) > 0); // clean up zombie processes
             }
         }

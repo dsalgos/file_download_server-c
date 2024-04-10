@@ -88,17 +88,40 @@ int extcmp(const char* f_name, char* ext) {
     return strcmp(f_name + idx_period, ext);
 }
 
-void strtoken(char* str, const char* delimiter, char** ret_vector) {
-    if(ret_vector == NULL) {
-        ret_vector = malloc(sizeof(char*) * MAX_STR_TOKENS);
+/**
+ * Tokenize the provided string using delimiter.
+ * The function does not modify the existing "str" provided.
+ * @param str string to be tokenized.
+ * @param delim delimiter value.
+ * @return a vector of tokens, each row contains one token.
+ */
+char** tokenize(char* str, char delim, int* count) {
+
+    char* temp = malloc(sizeof(char) * strlen(str)+1);
+    strcpy(temp, str);
+
+    char* token = NULL;
+    token = strtok(temp, &delim);
+    int num_tokens = 0;
+    while(token != NULL) {
+        num_tokens++;
+        token = strtok(NULL,  &delim);
+    }
+    *count = num_tokens;
+    char** tokens = NULL;
+    tokens = malloc(sizeof(char *) * num_tokens);
+
+    temp = malloc(sizeof(char) * strlen(str)+1);
+    strcpy(temp, str);
+    token = strtok(temp, &delim);
+    printf(" toke is %s\n", token);
+    num_tokens = 0;
+    while(token != NULL) {
+        tokens[num_tokens] = malloc(strlen(token)+1);
+        strcpy(tokens[num_tokens++], token);
+        token = strtok(NULL,  &delim);
     }
 
-
-    char* tok = strtok(str, delimiter);
-    int tok_count = 0;
-    while(tok != NULL && tok_count < MAX_STR_TOKENS) {
-        printf(" token : %s\n", tok);
-        tok_count++;
-        tok = strtok(NULL, delimiter);
-    }
+    return tokens;
 }
+

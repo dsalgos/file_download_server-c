@@ -5,6 +5,12 @@
 #define FILE_DOWNLOAD_SERVER_FILEUTIL_H
 #define MAX_BUFFER_FILE_SIZE 256
 #define MAX_BUFFER_NAME 128
+
+//user defined directives
+#define CODE_ERROR_APP  (-99)
+#define CODE_FILE_FOUND 999
+#define F_OPEN_LIMIT 100
+#define MAX_BUFFER_SIZE 512
 #endif //FILE_DOWNLOAD_SERVER_FILEUTIL_H
 
 #include <string.h>
@@ -28,21 +34,11 @@
 //directive required for nftw() function
 #define _XOPEN_SOURCE 600
 
-//user defined directives
-#define CODE_ERROR_APP  (-99)
-#define CODE_FILE_FOUND 999
-#define F_OPEN_LIMIT 100
-#define MAX_BUFFER_SIZE 512
 
 //declaring global variables
 
 //constant global variables
 const char* msg_file_not_found = "Search Unsuccessful.";
-const char* cp_optn = "-cp";
-const char* mv_optn = "-mv";
-const char c_extsn = '.'; // to find the file extension
-const char* cmd_tar = "tar -cf ";
-const char* name_tar = "a1.tar";
 
 //global variables
 char *f_path_tracker = NULL;
