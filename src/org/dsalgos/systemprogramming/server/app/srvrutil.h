@@ -47,9 +47,9 @@ char* CMD_FILE_SRCH_DATE = "w24fdb";
 char* CMD_CLIENT_QUIT = "quit";
 
 void handle_listdir_rqst(int fd, const char* command, char** response);
-void handle_fs_name(int fd);
-void handle_fs_size(int fd);
-void handle_fs_date(int fd);
+void handle_fs_name(int fd, char** rqst);
+void handle_fs_size(int fd, char** rqst);
+void handle_fs_date(int fd, char** rqst);
 
 
 /**
@@ -148,12 +148,18 @@ void handle_listdir_rqst(int fd, const char* command, char** response) {
     free_array((void **) response);
 }
 
+void handle_fs_name(int fd_clnt_sckt, char** rqst) {
+
+
+}
+
 /*
  * reading request from the client
  */
-int get_request(int fd_client, char* rqst) {
-    char buf[MAX_BUFFER_RR_SIZE];
-    ssize_t n_rb = read(fd_client, buf, MAX_BUFFER_RR_SIZE);
+int get_request(int fd_client, char* rqst, size_t sz_rqst) {
+
+
+    ssize_t n_rb = read(fd_client, rqst, sz_rqst);
     if(n_rb <=0) {
         return -1;
     }
@@ -187,7 +193,7 @@ int send_msg(int fd_sckt, char** msg) {
 int process_request(int fd_clnt_sckt) {
 
     char* rqst = calloc(sizeof(char), MAX_BUFFER_RR_SIZE);
-    if(get_request(fd_clnt_sckt, rqst) < 0) {
+    if(get_request(fd_clnt_sckt, rqst, MAX_BUFFER_RR_SIZE) < 0) {
         perror("error reading request");
     }
 
@@ -206,12 +212,16 @@ int process_request(int fd_clnt_sckt) {
     } else if(strcmp(rqst, CMD_LIST_DIR_SRTD_MTIME) == 0) {
         handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_MTIME, response);
     } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_NAME) == 0) {
-        handle_fs_name(fd_clnt_sckt);
+        handle_fs_name(fd_clnt_sckt, cmd_vector);
     } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_SIZE) == 0) {
-        handle_fs_size(fd_clnt_sckt);
+        handle_fs_size(fd_clnt_sckt, cmd_vector);
     } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_DATE) == 0) {
-        handle_fs_date(fd_clnt_sckt);
+        handle_fs_date(fd_clnt_sckt, cmd_vector);
     } else if(strcmp(cmd_vector[0], CMD_CLIENT_QUIT) == 0) {
+        //Quit must release all resources exclusively
+        free(rqst);
+        free_array((void **) response);
+        free_array((void **) cmd_vector);
         close(fd_clnt_sckt);
         exit(EXIT_SUCCESS);
     }

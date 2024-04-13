@@ -12,7 +12,6 @@
 
 void free_array(void** arr);
 
-
 void free_array(void** arr) {
     if(arr == NULL) {
         return;

@@ -7,4 +7,5 @@ add_executable(file_download_server src/org/dsalgos/systemprogramming/server/app
         ../../../../Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/errno.h
         ../../../../Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/errno.h
         ../../../../Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/stat.h
-        ../../../../Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/stat.h)
+        ../../../../Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/sys/stat.h
+        src/org/dsalgos/systemprogramming/server/app/srvrutil.h)

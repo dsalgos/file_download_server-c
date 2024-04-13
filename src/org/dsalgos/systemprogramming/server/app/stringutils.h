@@ -21,9 +21,13 @@ const char C_TILDA = '~';
 
 const char* SYMBOL_FWD_SLASH = "/";
 const char* STR_SPACE = " ";
+
 //string returns
 char* trim(const char* str);
 int extcmp(const char* f_name, char* ext);
+
+//no-value returning functions
+void recycle_str(char* ptr_str, unsigned long pos);
 
 
 /**
@@ -88,6 +92,20 @@ int extcmp(const char* f_name, char* ext) {
     return strcmp(f_name + idx_period, ext);
 }
 
+//A utility created to re-use the char* (string)
+//rather than dynamically allocating memory again and again.
+//the idea is similar to how StringBuilder works in Java
+void recycle_str(char* ptr_str, unsigned long pos) {
+    if(ptr_str == NULL || (pos < 0 || pos >= strlen(ptr_str))) {
+        return;
+    }
+
+    for(unsigned long i=pos; i < strlen(ptr_str)-1; i++) {
+        *(ptr_str+i) = '\0';
+    }
+
+}
+
 /**
  * Tokenize the provided string using delimiter.
  * The function does not modify the existing "str" provided.
@@ -125,3 +143,35 @@ char** tokenize(char* str, char delim, int* count) {
     return tokens;
 }
 
+/**
+ * Utility function to return the permissions in human readable form.
+ * @param mode
+ * @return
+ */
+char *get_permissions(mode_t mode) {
+    static char permissions[11]; // Buffer to store permissions string
+
+    // Initialize permissions string with dashes (-)
+    memset(permissions, '-', 10);
+    permissions[10] = '\0'; // Null terminate the string
+
+    // Check owner permissions
+    permissions[0] = (mode & S_IRUSR) ? 'r' : '-';
+    permissions[1] = (mode & S_IWUSR) ? 'w' : '-';
+    permissions[2] = (mode & S_IXUSR) ? (mode & S_ISUID) ? 's' : 'x' : '-';
+
+    // Check group permissions
+    permissions[3] = (mode & S_IRGRP) ? 'r' : '-';
+    permissions[4] = (mode & S_IWGRP) ? 'w' : '-';
+    permissions[5] = (mode & S_IXGRP) ? (mode & S_ISGID) ? 's' : 'x' : '-';
+
+    // Check other permissions
+    permissions[6] = (mode & S_IROTH) ? 'r' : '-';
+    permissions[7] = (mode & S_IWOTH) ? 'w' : '-';
+    permissions[8] = (mode & S_IXOTH) ? (mode & S_ISVTX) ? 't' : 'x' : '-';
+
+    // Add special permission characters
+    permissions[9] = (mode & S_ISUID) ? 'S' : (mode & S_ISGID) ? 'S' : (mode & S_ISVTX) ? 'T' : '-';
+
+    return permissions;
+}
