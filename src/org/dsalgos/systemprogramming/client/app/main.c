@@ -61,7 +61,14 @@ int main(int argc, char *argv[])
 
         memset(buffer, 0, sizeof(buffer));
 
-        num = read(socket_fd, buffer, 1024);
+
+        while((num =  read(socket_fd, buffer, 1024)) > 0) {
+            printf("inside while\n");
+            printf("%s", buffer);
+            if(num < 1024) {
+                break;
+            }
+        }
         printf("Received Response:\n%s\n", buffer);
     }
     close(socket_fd);

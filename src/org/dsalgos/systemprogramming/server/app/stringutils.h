@@ -204,6 +204,7 @@ char *ulong_to_string(unsigned long value) {
     }
 
     // Convert digits to characters and store in the string (reverse order)
+    temp = value;
     result[num_digits] = '\0'; // Initialize null terminator
     while (temp > 0) {
         int digit = temp % 10;

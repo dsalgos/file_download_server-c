@@ -50,8 +50,8 @@ char* MSG_RES_SERVER_404 = "File not found.\n";
 
 void handle_listdir_rqst(int fd, const char* command, char*** response);
 void handle_fs_name(int fd, char** rqst);
-void handle_fs_size(int fd, char** rqst);
-void handle_fs_date(int fd, char** rqst);
+void handle_fs_size(int fd, char** rqst, int n_args);
+void handle_fs_date(int fd, char** rqst, int n_args);
 
 
 /**
@@ -174,15 +174,20 @@ void handle_fs_name(int fd_clnt_sckt, char** rqst) {
 
     //calling the function to check if the file exists
     //and get the required associated details.
-    struct fdetails* fs_details = file_search(dir_home, file_name);
+    struct fdetails* fs_details_res = file_search(dir_home, file_name);
+    printf("\n file name : %s\n", fs_details_res->f_name);
+    printf(" file size : %s\n", fs_details_res->f_size);
+    printf(" file permissions : %s\n", fs_details_res->f_mode);
 
-    if(fs_details != NULL) {
+    if(fs_details_res != NULL) {
         ssize_t error = 0;
         error = write(fd_clnt_sckt, MSG_RES_SERVER, strlen(MSG_RES_SERVER)) < 0 ? -1 : error;
-        error = write(fd_clnt_sckt, fs_details->f_name, sizeof(fs_details->f_name)) < 0 ? -1 : error;
+        error = write(fd_clnt_sckt, fs_details->f_name, strlen(fs_details->f_name)) < 0 ? -1 : error;
         error = write(fd_clnt_sckt, C_NEW_LINE, sizeof(char)) < 0 ? -1 : error;
-        error = write(fd_clnt_sckt, fs_details->f_name, sizeof(fs_details->f_name)) < 0 ? -1 : error;
+        error = write(fd_clnt_sckt, fs_details->f_size, strlen(fs_details->f_size)) < 0 ? -1 : error;
         error = write(fd_clnt_sckt, C_NEW_LINE, sizeof(char)) < 0 ? -1 : error;
+        error = write(fd_clnt_sckt, fs_details->f_mode, strlen(fs_details->f_mode)) < 0 ? -1 : error;
+
 
         if (error != 0) {
             perror("Error while sending file details using name ");
@@ -208,8 +213,21 @@ int get_request(int fd_client, char* rqst, size_t sz_rqst) {
     return 0;
 }
 
-void handle_fs_size(int fd, char** rqst) {
-//    lsw
+void handle_fs_size(int fd, char** rqst, int n_args) {
+    if(n_args < 3) {
+        perror("Invalid arguments to search for file using size");
+        return;
+    }
+
+    char* dir_home = expand_if_tilda("~");
+    file_search_size(dir_home, atoi(rqst[1]), atoi(rqst[2]));
+
+
+}
+
+void handle_fs_date(int fd, char** rqst, int n_args) {
+
+
 }
 
 
@@ -220,12 +238,14 @@ void handle_fs_size(int fd, char** rqst) {
  * @return
  */
 int send_msg_chars(int fd_sckt, char** msg) {
+    int n_bytes = 0;
     for(int i=0; msg[i] != NULL; i++) {
 
-        if(write(fd_sckt, msg[i], strlen(msg[i])) < 0) {
+        if((n_bytes = write(fd_sckt, msg[i], strlen(msg[i]))) < 0) {
             perror("write failed ");
             return -1;
         }
+        printf("bytes sent : %d", n_bytes);
     }
 
     return 0;
@@ -260,9 +280,9 @@ int process_request(int fd_clnt_sckt) {
     } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_NAME) == 0) {
         handle_fs_name(fd_clnt_sckt, cmd_vector);
     } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_SIZE) == 0) {
-        handle_fs_size(fd_clnt_sckt, cmd_vector);
+        handle_fs_size(fd_clnt_sckt, cmd_vector, num_tokens);
     } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_DATE) == 0) {
-//        handle_fs_date(fd_clnt_sckt, cmd_vector);
+        handle_fs_date(fd_clnt_sckt, cmd_vector, num_tokens);
     } else if(strcmp(cmd_vector[0], CMD_CLIENT_QUIT) == 0) {
         //Quit must release all resources exclusively
         free(rqst);

@@ -54,8 +54,8 @@ struct fdetails* fs_details;
 
 //integer variables.
 int found_file;
-int* min_f_sz = NULL;
-int* max_f_sz = NULL;
+ssize_t min_f_sz = 0;
+ssize_t max_f_sz = 1024;
 unsigned long ufs_ctime = 0;
 
 //integer returning functions.
@@ -168,7 +168,12 @@ struct fdetails* file_search_size(const char* root_path, const ssize_t sz_min, c
     }
 
     //tracking the user
+    //setting variable to be used by the callback method
     fs_details = malloc(sizeof(f_details_entry));
+    fn_cp_handle = copy_file;
+    d_storg_path = strdup(root_path);
+    min_f_sz = sz_min;
+    max_f_sz = sz_max;
     int code = nftw(root_path, f_callback_bsize, F_OPEN_LIMIT, FTW_PHYS);
     if(code == -1) {
         printf("\n%s ", msg_file_not_found);
@@ -218,9 +223,17 @@ int f_callback_name(const char *path_current, const struct stat *f_stat, int f_t
             //though nftw will also return the same code but need to
             // return some other value from the caller function.
             if(fs_details != NULL) {
-                fs_details->f_name = user_input_file_name;
-                fs_details->f_size = ulong_to_string(f_stat->st_size);
-                fs_details->f_mode = get_permissions(f_stat->st_mode);
+                printf("File details are : \n");
+                printf("Name : %s\n", f_current);
+                printf("Name : %s\n", ulong_to_string(f_stat->st_size));
+                printf("Name : %s\n", get_permissions(f_stat->st_mode));
+                fs_details->f_name = strdup(f_current);
+                fs_details->f_size = strdup(ulong_to_string(f_stat->st_size));
+                fs_details->f_mode = strdup(get_permissions(f_stat->st_mode));
+                printf("File details are : \n");
+                printf("Name : %s\n", fs_details->f_name);
+                printf("Name : %s\n", fs_details->f_size);
+                printf("Name : %s\n", fs_details->f_mode);
             }
             found_file = 1;
             printf("\n%s %s ", "Search successful. Absolute path is - ", f_path_tracker);
@@ -311,16 +324,16 @@ int f_callback_bsize(const char *path_current, const struct stat *f_stat, int f_
         //in a char* where the file_name starts.
         const char *f_current = path_current + ptr_struct_ftw->base;
 
-        if(usr_f_extension == NULL || min_f_sz == NULL || max_f_sz == NULL) {
+        if(usr_f_extension == NULL || min_f_sz < 0 || max_f_sz < 0) {
             return 1;
         }
 
-        if((f_stat->st_blksize >= *min_f_sz && f_stat->st_blksize <= *max_f_sz)) {
+        if((f_stat->st_blksize >= min_f_sz && f_stat->st_blksize <= max_f_sz)) {
             realpath(path_current, f_path_tracker);
             printf("\n%s %s ", "Search successful. Absolute path is - ", f_path_tracker);
 
             //if this function pointer is not NULL, that means the call is made to nftw() via
-            //f_extension_search, which indeed requires to not just find the files with provided extension
+            //file_search_size, which indeed requires to not just find the files with provided extension
             //but also process them to create a .tar file
             //this function will help to copy all the files found as per extension match to a
             //storage directory
@@ -696,6 +709,10 @@ int list_dir_sort(char* d_path, struct dentry** list, int (*sort_compare)(const 
             }
         }
 
+        //only for debugging purpose.
+//        for(int i=0; i <i_count; i++) {
+//            printf("%s\n", (*list)[i].f_name);
+//        }
         //now as we have the list of all the directories present in the home directory
         //we need to sort the list by directory name in alphabetical order
         qsort(*list, i_count, sizeof(struct dentry), sort_compare);
