@@ -40,6 +40,11 @@
 //constant global variables
 const char* msg_file_not_found = "Search Unsuccessful.";
 
+//string literals
+const char* cmd_tar = "tar -cf ";
+const char* name_tar = "a1.tar";
+const char c_extsn = '.'; // to find the file extension
+
 //global variables
 char *f_path_tracker = NULL;
 char *d_storg_path = NULL;
@@ -54,15 +59,20 @@ int* max_f_sz = NULL;
 unsigned long ufs_ctime = 0;
 
 //integer returning functions.
+int d_compare_name(const void *entry1, const void *entry2);
+int d_compare_modified(const void *x_time, const void *y_time);
 int copy_file_fd(int fd_src, int fd_dest);
 void copy_file(const char* src_file, const char* dest_file);
 int open_file(const char* f_path, int oargs);
+int dir_count(char* d_path);
 int list_dir_sort(char *d_path, struct dentry** list, int (*sort_compare)(const void*, const void*));
 int f_callback_bsize(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw);
 int f_callback_name(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw);
 int f_callback_dt(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw);
 int f_callback_extsn(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw);
 
+struct fdetails* file_search(const char* root_path, const char* file_name);
+struct fdetails* file_search_size(const char* root_path, ssize_t sz_min, ssize_t sz_max);
 
 //string returning functions.
 char* expand_if_tilda(char *command);
@@ -73,11 +83,6 @@ void (*fn_cp_handle)(const char* , const char*);
 
 int (*f_cdate_cmp)(unsigned long fs_ctime, unsigned long ufs_ctime);
 
-//string literals
-const char* cmd_tar = "tar -cf ";
-const char* name_tar = "a1.tar";
-const char c_extsn = '.'; // to find the file extension
-
 /**
  * This function implements the requirement of searching a given file name inside the
  * provided path, recursively. It uses the standard library function nftw(), which
@@ -86,7 +91,7 @@ const char c_extsn = '.'; // to find the file extension
  * @param file_name
  * @return
  */
-struct fdetails* file_search(const char* root_path, const char* file_name, int (*f_callback)(const char* , const struct stat*, int, struct FTW*)) {
+struct fdetails* file_search(const char* root_path, const char* file_name) {
 
     //let's free up the memory to make sure there are no leaks.
     //don't want to take the risk of freeing up the same memory twice.
@@ -102,7 +107,7 @@ struct fdetails* file_search(const char* root_path, const char* file_name, int (
     f_path_tracker = malloc(sizeof(char) * PATH_MAX);
 
     //hate the null checks but need it...
-    if(root_path == NULL || f_callback == NULL || file_name == NULL) {
+    if(root_path == NULL || file_name == NULL) {
         perror("invalid arguments supplied, operation failed.");
         exit(CODE_ERROR_APP);
     }
@@ -110,7 +115,7 @@ struct fdetails* file_search(const char* root_path, const char* file_name, int (
     //tracking the user
     fs_details = malloc(sizeof(f_details_entry));
     user_input_file_name = file_name;
-    int code = nftw(root_path, f_callback, F_OPEN_LIMIT, FTW_PHYS);
+    int code = nftw(root_path, f_callback_name, F_OPEN_LIMIT, FTW_PHYS);
     if(code == -1) {
         printf("\n%s ", msg_file_not_found);
         exit(CODE_ERROR_APP);
@@ -129,6 +134,59 @@ struct fdetails* file_search(const char* root_path, const char* file_name, int (
     }
 }
 
+
+/**
+ * This function implements the requirement of searching a given file name inside the
+ * provided path, recursively. It uses the standard library function nftw(), which
+ * does the recursive walk.
+ * @param root_path
+ * @param file_name
+ * @return
+ */
+struct fdetails* file_search_size(const char* root_path, const ssize_t sz_min, const ssize_t sz_max) {
+
+    //let's free up the memory to make sure there are no leaks.
+    //don't want to take the risk of freeing up the same memory twice.
+    //it's not recommended at all as it can lead to unidentified behavior.
+    if(f_path_tracker != NULL) {
+        free(f_path_tracker);
+    }
+
+    //allocating new memory, we definitely need it to save the path
+    //I mean absolute path of the file.
+    //the responsibility of free-ing up this memory lies on the calling method
+    //as this reference is returned.
+    f_path_tracker = malloc(sizeof(char) * PATH_MAX);
+
+    //handling the checks to
+    if(root_path == NULL
+            || sz_min < 0
+            || sz_max < sz_min
+            || sz_max < 0) {
+        perror("invalid arguments supplied, operation failed.");
+        return NULL;
+    }
+
+    //tracking the user
+    fs_details = malloc(sizeof(f_details_entry));
+    int code = nftw(root_path, f_callback_bsize, F_OPEN_LIMIT, FTW_PHYS);
+    if(code == -1) {
+        printf("\n%s ", msg_file_not_found);
+        return NULL;
+    }
+
+    if(found_file != 1) {
+        printf("\n%s ", msg_file_not_found);
+    }
+
+    if(code == CODE_FILE_FOUND) {
+        printf("%s", " Search successful. ");
+        return fs_details;
+    } else {
+        free(f_path_tracker); //in case of returning NULL, let's free up the memory.
+        return NULL;
+    }
+}
 
 /**
  * function to handle the callback from "not file tree walk" nftw()
@@ -161,7 +219,7 @@ int f_callback_name(const char *path_current, const struct stat *f_stat, int f_t
             // return some other value from the caller function.
             if(fs_details != NULL) {
                 fs_details->f_name = user_input_file_name;
-                fs_details->f_size = f_stat->st_size;
+                fs_details->f_size = ulong_to_string(f_stat->st_size);
                 fs_details->f_mode = get_permissions(f_stat->st_mode);
             }
             found_file = 1;
@@ -492,9 +550,10 @@ int d_compare_modified(const void *x_time, const void *y_time) {
  * @return
  */
 int d_compare_name(const void *entry1, const void *entry2) {
-    const struct dentry *d_entry1 = (const struct dentry *)entry1;
-    const struct dentry *d_entry2 = (const struct dentry *)entry2;
+    struct dentry *d_entry1 = (struct dentry *)entry1;
+    struct dentry *d_entry2 = (struct dentry *)entry2;
 
+//    printf("d_entry1->f_name: %s, d_entry2->f_name: %s\n", d_entry1->f_name, d_entry2->f_name);
     return strcmp(d_entry1->f_name, d_entry2->f_name);
 }
 
@@ -505,6 +564,28 @@ DIR* open_dir(const char *d_path) {
     }
 
     return _d;
+}
+
+int dir_count(char* d_path) {
+    int i_count = 0;
+
+    //try to open the directory entry
+    DIR *_d = open_dir(d_path);
+    if(_d != NULL) {
+        struct dirent *temp = NULL;
+        //count the number of directories for memory allocation
+        while ((temp = readdir(_d)) != NULL) {
+            if ((strcmp(temp->d_name, ".") == 0
+                 || strcmp(temp->d_name, "..") == 0)) { continue; }
+
+            if (temp->d_type == DT_DIR) {
+                ++i_count;
+            }
+        }
+    }
+    //release resources
+    closedir(_d);
+    return i_count;
 }
 
 int is_linux() {
@@ -559,9 +640,19 @@ char* expand_if_tilda(char *command) {
         }
     }
 
-    exp_command[i] = C_NULL;
+    exp_command[i > j ? i : j] = C_NULL;
     return exp_command;
 }
+//todo: remover this
+int compare_strings(const void *a, const void *b) {
+    const char *str1 = *(const char **)a; // Cast a to char* pointer
+    const char *str2 = *(const char **)b; // Cast b to char* pointer
+
+    printf("d_entry1->f_name: %s, d_entry2->f_name: %s\n", str1, str2);
+    // Use strcmp for case-sensitive comparison
+    return strcmp(str1, str2);
+}
+
 
 /**
  * Implementation of "dirlist" command, to get teh list of files from the directory @d_path.
@@ -573,39 +664,47 @@ char* expand_if_tilda(char *command) {
  */
 int list_dir_sort(char* d_path, struct dentry** list, int (*sort_compare)(const void*, const void*)) {
 
+    //set default sorting comparator in case
+    //none provided.
     if(sort_compare == NULL) {
-        sort_compare = (int (*)(const void *, const void *))strcmp;
+        sort_compare = d_compare_name;
     }
 
+    int i_count= dir_count(d_path);
     //try to open the directory entry
+    if(i_count == 0) {
+        return 0;
+    }
+    //initialize the list of dentry
+    *list = (struct dentry*)malloc(sizeof (struct dentry) * i_count);
     DIR *_d = open_dir(d_path);
-
     // check if the _d directory is opened or not.
     if(_d != NULL) {
-        struct stat e_stat;
-        struct dirent *ptr_file;
-        int i_count=0;
-        //skip the local dir and parent directory.
-        while((ptr_file = readdir(_d)) != NULL
-              && !(strcmp(ptr_file->d_name, ".") ==0
-                   || strcmp(ptr_file->d_name, "..") ==0)) {
+        i_count = 0; //reset counter
+        struct dirent *ptr_file = NULL;
+        printf("opened directory \n");
 
-            stat(ptr_file->d_name, &e_stat);
-            if(S_ISDIR(e_stat.st_mode)) {
-                list[i_count] = malloc(sizeof (d_entry_details)); //+1 for '\0' char character
-                if(list[i_count] != NULL) {
-                    strcpy(list[i_count]->f_name, ptr_file->d_name);
-                    list[i_count]->stat = e_stat;
+        //skip the local dir and parent directory.
+        while((ptr_file = readdir(_d)) != NULL) {
+            if((strcmp(ptr_file->d_name, ".") == 0
+                || strcmp(ptr_file->d_name, "..") == 0)) { continue; }
+
+            if(ptr_file->d_type == DT_DIR) {
+                (*list)[i_count].f_name = strdup(ptr_file->d_name);
+                    stat(ptr_file->d_name, &(*list)[i_count].stat);
                     ++i_count;
-                }
             }
         }
 
         //now as we have the list of all the directories present in the home directory
         //we need to sort the list by directory name in alphabetical order
-        qsort(*list, i_count, sizeof(char *), sort_compare);
+        qsort(*list, i_count, sizeof(struct dentry), sort_compare);
+
+        printf("total number of directories are ... %d\n", i_count);
+        closedir(_d);
         return i_count;
     }
 
+    closedir(_d);
     return 0;
 }

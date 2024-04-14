@@ -45,8 +45,10 @@ char* CMD_FILE_SRCH_SIZE = "w24fz";
 char* CMD_FILE_SRCH_EXT = "w24ft";
 char* CMD_FILE_SRCH_DATE = "w24fdb";
 char* CMD_CLIENT_QUIT = "quit";
+char* MSG_RES_SERVER = "RESPONSE :\n";
+char* MSG_RES_SERVER_404 = "File not found.\n";
 
-void handle_listdir_rqst(int fd, const char* command, char** response);
+void handle_listdir_rqst(int fd, const char* command, char*** response);
 void handle_fs_name(int fd, char** rqst);
 void handle_fs_size(int fd, char** rqst);
 void handle_fs_date(int fd, char** rqst);
@@ -63,7 +65,8 @@ int init_server(int *fd_server, struct sockaddr_in address_srvr);
 
 //integer return
 int process_request(int fd_clnt_sckt);
-int send_msg(int fd_sckt, char** msg);
+int send_msg_chars(int fd_sckt, char** msg);
+
 int bind_address();
 int listen_sckt();
 
@@ -114,43 +117,81 @@ int init_server(int *fd_server, struct sockaddr_in address_srvr) {
 
 
 
-void handle_listdir_rqst(int fd, const char* command, char** response) {
+void handle_listdir_rqst(int fd, const char* command, char*** response) {
 
     if(command == NULL) { return; }
 
+    *response = NULL;
     char* dir_home = expand_if_tilda("~");
     printf("searching find in home %s\n", dir_home);
 
-    struct dentry** list_dentry = calloc(sizeof(struct dentry*), MAX_BUFFER_SIZE);
-    int ret_value = -1;
+    struct dentry* list_dentry = NULL;
+    int count_dir = -1;
     if(strcmp(CMD_LIST_DIR_SRTD_NAME, command) == 0) {
-        ret_value = list_dir_sort(dir_home, list_dentry, d_compare_name);
+        count_dir = list_dir_sort(dir_home, &list_dentry, d_compare_name);
     } else if(strcmp(CMD_LIST_DIR_SRTD_MTIME, command) == 0){
-        ret_value = list_dir_sort(dir_home, list_dentry, d_compare_modified);
+        count_dir = list_dir_sort(dir_home, &list_dentry, d_compare_modified);
     }
 
-    if(ret_value != -1) {
-        response = malloc(sizeof(char*)  * sizeof(list_dentry));
-        for(int i=0; list_dentry[i] != NULL; i++) {
-            response[i] = calloc(sizeof(char)+2, strlen(list_dentry[i]->f_name));
+    printf(" handle_listdir_rqst : found number of directories : %d\n", count_dir);
+    if(list_dentry != NULL) {
 
-            //add the file name to response
-            strcpy(response[i], list_dentry[i]->f_name);
-            strcpy(response[i]+ strlen(list_dentry[i]->f_name), "\n");
+        printf(" list is not NULL \n");
+        *response = (char**)malloc(sizeof(char*) * count_dir);
+        if (*response == NULL) {
+            perror("malloc");
+            return;
+        }
+        for(int i=0; i < count_dir; i++) {
+            size_t length = strlen(list_dentry[i].f_name)+2;
+
+            //create the response to be sent
+            (*response)[i] = (char*) malloc(sizeof(char) * length);
+//            //add the file name to response
+            (*response)[i]  = strdup(list_dentry[i].f_name);
+            (*response)[i][strlen(list_dentry[i].f_name)] = '\n';
+            (*response)[i][length-1] = '\0';
+
         }
 
-        send_msg(fd, response);
+        for(int i = 0; i < count_dir; i++) {
+            printf("copied directory is %s", (*response)[i]);
+        }
+
+        send_msg_chars(fd, *response);
     }
 
 
     free(dir_home);
-    free_array((void **) list_dentry);
-    free_array((void **) response);
+    free_dentry(list_dentry, count_dir);
 }
 
 void handle_fs_name(int fd_clnt_sckt, char** rqst) {
+    char* dir_home = expand_if_tilda("~");
 
+    char* file_name = calloc(sizeof(char), strlen(rqst[1]));
+    strcpy(file_name, rqst[1]);
 
+    //calling the function to check if the file exists
+    //and get the required associated details.
+    struct fdetails* fs_details = file_search(dir_home, file_name);
+
+    if(fs_details != NULL) {
+        ssize_t error = 0;
+        error = write(fd_clnt_sckt, MSG_RES_SERVER, strlen(MSG_RES_SERVER)) < 0 ? -1 : error;
+        error = write(fd_clnt_sckt, fs_details->f_name, sizeof(fs_details->f_name)) < 0 ? -1 : error;
+        error = write(fd_clnt_sckt, C_NEW_LINE, sizeof(char)) < 0 ? -1 : error;
+        error = write(fd_clnt_sckt, fs_details->f_name, sizeof(fs_details->f_name)) < 0 ? -1 : error;
+        error = write(fd_clnt_sckt, C_NEW_LINE, sizeof(char)) < 0 ? -1 : error;
+
+        if (error != 0) {
+            perror("Error while sending file details using name ");
+        }
+    } else {
+        if(write(fd_clnt_sckt, MSG_RES_SERVER_404, strlen(MSG_RES_SERVER_404)) < 0) {
+            perror("Error : ");
+        }
+    }
 }
 
 /*
@@ -167,16 +208,22 @@ int get_request(int fd_client, char* rqst, size_t sz_rqst) {
     return 0;
 }
 
+void handle_fs_size(int fd, char** rqst) {
+//    lsw
+}
+
+
 /**
  * Writing the response for the client.
  * @param fd_sckt
  * @param msg
  * @return
  */
-int send_msg(int fd_sckt, char** msg) {
-
+int send_msg_chars(int fd_sckt, char** msg) {
     for(int i=0; msg[i] != NULL; i++) {
+
         if(write(fd_sckt, msg[i], strlen(msg[i])) < 0) {
+            perror("write failed ");
             return -1;
         }
     }
@@ -192,12 +239,11 @@ int send_msg(int fd_sckt, char** msg) {
  */
 int process_request(int fd_clnt_sckt) {
 
-    char* rqst = calloc(sizeof(char), MAX_BUFFER_RR_SIZE);
+    char* rqst = malloc(sizeof(char)* MAX_BUFFER_RR_SIZE);
     if(get_request(fd_clnt_sckt, rqst, MAX_BUFFER_RR_SIZE) < 0) {
         perror("error reading request");
     }
 
-    strtok(rqst, STR_SPACE);
     int num_tokens;
     char** cmd_vector = tokenize(rqst, C_SPACE, &num_tokens);
     if(cmd_vector == NULL || num_tokens < 2) {
@@ -206,17 +252,17 @@ int process_request(int fd_clnt_sckt) {
     }
 
     printf("Request : %s\n", rqst);
-    char** response = NULL;
+    char **response = NULL;
     if(strcmp(rqst, CMD_LIST_DIR_SRTD_NAME) == 0) {
-       handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_NAME, response);
+       handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_NAME, &response);
     } else if(strcmp(rqst, CMD_LIST_DIR_SRTD_MTIME) == 0) {
-        handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_MTIME, response);
+        handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_MTIME, &response);
     } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_NAME) == 0) {
         handle_fs_name(fd_clnt_sckt, cmd_vector);
     } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_SIZE) == 0) {
         handle_fs_size(fd_clnt_sckt, cmd_vector);
     } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_DATE) == 0) {
-        handle_fs_date(fd_clnt_sckt, cmd_vector);
+//        handle_fs_date(fd_clnt_sckt, cmd_vector);
     } else if(strcmp(cmd_vector[0], CMD_CLIENT_QUIT) == 0) {
         //Quit must release all resources exclusively
         free(rqst);
@@ -230,5 +276,6 @@ int process_request(int fd_clnt_sckt) {
     free(rqst);
     free_array((void **) response);
     free_array((void **) cmd_vector);
+    printf("done with processing the request ...\n");
     return 0;
 }

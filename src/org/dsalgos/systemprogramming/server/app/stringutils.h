@@ -15,12 +15,13 @@
 //constant literals
 const char C_SPACE = ' ';
 const char C_PERIOD = '.';
-const char C_NEW_LINE = '\n';
+
 const char C_NULL = '\0';
 const char C_TILDA = '~';
 
 const char* SYMBOL_FWD_SLASH = "/";
 const char* STR_SPACE = " ";
+const char* C_NEW_LINE = "\n";
 
 //string returns
 char* trim(const char* str);
@@ -35,6 +36,7 @@ void recycle_str(char* ptr_str, unsigned long pos);
  * in the provided string.
  * @param str string
  * @return
+ *
  */
 char* trim(const char* str) {
     char* begin_str = str;
@@ -126,20 +128,23 @@ char** tokenize(char* str, char delim, int* count) {
         token = strtok(NULL,  &delim);
     }
     *count = num_tokens;
+    free(temp);
+
     char** tokens = NULL;
     tokens = malloc(sizeof(char *) * num_tokens);
-
     temp = malloc(sizeof(char) * strlen(str)+1);
     strcpy(temp, str);
     token = strtok(temp, &delim);
     printf(" toke is %s\n", token);
     num_tokens = 0;
+
     while(token != NULL) {
         tokens[num_tokens] = malloc(strlen(token)+1);
         strcpy(tokens[num_tokens++], token);
         token = strtok(NULL,  &delim);
     }
 
+    free(temp);
     return tokens;
 }
 
@@ -174,4 +179,37 @@ char *get_permissions(mode_t mode) {
     permissions[9] = (mode & S_ISUID) ? 'S' : (mode & S_ISGID) ? 'S' : (mode & S_ISVTX) ? 'T' : '-';
 
     return permissions;
+}
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+char *ulong_to_string(unsigned long value) {
+    int num_digits = 0;
+    unsigned long temp = value;
+
+    // Count the number of digits
+    do {
+        temp /= 10;
+        num_digits++;
+    } while (temp > 0);
+
+    // Allocate memory for the string (including null terminator)
+    int alloc_size = num_digits + 1;
+    char *result = (char*)malloc(alloc_size * sizeof(char));
+    if (result == NULL) {
+        return NULL; // Memory allocation failed
+    }
+
+    // Convert digits to characters and store in the string (reverse order)
+    result[num_digits] = '\0'; // Initialize null terminator
+    while (temp > 0) {
+        int digit = temp % 10;
+        result[num_digits-- - 1] = digit + '0';
+        temp /= 10;
+    }
+
+    return result;
 }

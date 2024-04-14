@@ -18,8 +18,20 @@ void free_array(void** arr) {
     }
 
     for(int i=0; arr[i] != NULL; i++) {
-        free(arr[i]);
+        if(arr[i] != NULL) {
+            free(arr[i]);
+        }
+    }
+    free(arr);
+}
+
+void free_dentry(struct dentry *entry, int count) {
+
+    for(int i=0; i < count; i++) {
+        if(entry[i].f_name != NULL) {
+            free(entry[i].f_name);
+        }
     }
 
-    free(arr);
+    free(entry);
 }

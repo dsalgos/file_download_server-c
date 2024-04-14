@@ -33,7 +33,6 @@ void start_server(const struct sockaddr_in address_srvr, int fd_sckt_srvr) {
         if ((fd_clnt_sckt = accept(fd_sckt_srvr, (struct sockaddr *)&address_srvr, (socklen_t *)&sckt_address_len)) < 0)
         {
             perror("Error in accept");
-//            sendfile();
             exit(EXIT_FAILURE);
         }
 
@@ -46,7 +45,8 @@ void start_server(const struct sockaddr_in address_srvr, int fd_sckt_srvr) {
             // sedn control message to client "CTS(Connected to server)"
             char** msg = malloc(sizeof(char*));
             msg[0] = "CTS";
-            send_msg(fd_clnt_sckt, msg);
+            printf("client fd : %d", fd_clnt_sckt);
+            send_msg_chars(fd_clnt_sckt, msg);
 
             printf("New connection from client: %s...\n", inet_ntoa(default_server_address.sin_addr));
 
@@ -57,9 +57,10 @@ void start_server(const struct sockaddr_in address_srvr, int fd_sckt_srvr) {
                 // child process
                 close(fd_sckt_srvr);
 
+                printf("client fd : %d", fd_clnt_sckt);
                 // call process client function
                 process_request(fd_clnt_sckt);
-                exit(EXIT_SUCCESS);
+//                exit(EXIT_SUCCESS);
             }
             else if (pid == -1)
             {
@@ -71,6 +72,7 @@ void start_server(const struct sockaddr_in address_srvr, int fd_sckt_srvr) {
             else
             {
                 // parent process
+                printf("closing the client socket...");
                 close(fd_clnt_sckt);
                 while (waitpid(-1, NULL, WNOHANG) > 0); // clean up zombie processes
             }

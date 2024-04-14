@@ -13,7 +13,7 @@
 struct fdetails {
     char* f_name; //name of the file.
     char* f_mode; // file permissions
-    unsigned long f_ctime; //file creation time in nano seconds
-    unsigned long f_mtime; //file modified time in nano seconds
-    unsigned long f_size; //size of file in bytes
+    char* f_size; //size of file in bytes
+    char* f_ctime; //file creation time in nano seconds
+    char* f_mtime; //file modified time in nano seconds
 }f_details_entry;
