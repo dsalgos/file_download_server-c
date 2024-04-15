@@ -1,9 +1,4 @@
 # ninja log v5
-3	61	1712953461145137727	build.ninja	5119a51473a08bb4
-0	35	1710543499176287787	CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/client/app/main.c.o	d8134b876d74b9a
-35	80	1710543499220693398	file_download_server	dc185ad50663a1a6
-0	234	1713032906337903193	CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/server/app/server.c.o	cc8ef8eabb2d3ebc
-0	82	1713052869874713648	CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/server/app/server.c.o	cc8ef8eabb2d3ebc
-83	121	1713052869913873888	file_download_server	3f8ca014401b3e9d
-0	71	1713127374557563705	CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/server/app/server.c.o	cc8ef8eabb2d3ebc
+3	61	1713159261100998229	build.ninja	5119a51473a08bb4
 74	106	1713127374591778196	file_download_server	3f8ca014401b3e9d
+0	71	1713127374557563705	CMakeFiles/file_download_server.dir/src/org/dsalgos/systemprogramming/server/app/server.c.o	cc8ef8eabb2d3ebc

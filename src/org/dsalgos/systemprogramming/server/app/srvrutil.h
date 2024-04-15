@@ -32,27 +32,31 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <limits.h>
+#include <string.h>
 
 
 #include "fileutil.h"
 #include "mem_util.h"
 
 //command literals
-char* CMD_LIST_DIR_SRTD_NAME = "dirlist -a";
-char* CMD_LIST_DIR_SRTD_MTIME = "dirlist -t";
-char* CMD_FILE_SRCH_NAME = "w24fn";
-char* CMD_FILE_SRCH_SIZE = "w24fz";
-char* CMD_FILE_SRCH_EXT = "w24ft";
-char* CMD_FILE_SRCH_DATE = "w24fdb";
-char* CMD_CLIENT_QUIT = "quit";
-char* MSG_RES_SERVER = "RESPONSE :\n";
-char* MSG_RES_SERVER_404 = "File not found.\n";
+const char* CMD_LIST_DIR_SRTD_NAME = "dirlist -a";
+const char* CMD_LIST_DIR_SRTD_MTIME = "dirlist -t";
+const char* CMD_FILE_SRCH_NAME = "w24fn";
+const char* CMD_FILE_SRCH_SIZE = "w24fz";
+const char* CMD_FILE_SRCH_EXT = "w24ft";
+const char* CMD_FILE_SRCH_DATE_BF = "w24fdb";
+const char* CMD_FILE_SRCH_DATE_DA = "w24fda";
+const char* CMD_CLIENT_QUIT = "quit";
+const char* MSG_RES_SERVER = "RESPONSE :\n";
+const char* MSG_RES_SERVER_404 = "File not found.\n";
+const char* MSG_RES_SERVER_INVALID_COMMAND = "Invalid command\n";
+const char* MSG_RES_SERVER_ERR = " Server encountered an error.\n";
 
 void handle_listdir_rqst(int fd, const char* command, char*** response);
 void handle_fs_name(int fd, char** rqst);
 void handle_fs_size(int fd, char** rqst, int n_args);
-void handle_fs_date(int fd, char** rqst, int n_args);
-
+void handle_fs_date(int fd, char** rqst, int n_args, int dt_cmp);
+void handle_fs_ext(int fd, char** rqst, int n_args);
 
 /**
  *
@@ -64,13 +68,54 @@ void handle_fs_date(int fd, char** rqst, int n_args);
 int init_server(int *fd_server, struct sockaddr_in address_srvr);
 
 //integer return
-int process_request(int fd_clnt_sckt);
+void process_request(int fd_clnt_sckt);
 int send_msg_chars(int fd_sckt, char** msg);
 
 int bind_address();
 int listen_sckt();
 
+/**
+ * Sending an error message to teh client in case server
+ * encounters an error or not a valid response.
+ * @param fd_clnt_sckt
+ * @param msg
+ */
+void send_error_msg(int fd_clnt_sckt, const char* msg) {
+    if(msg != NULL) {
+        if (write(fd_clnt_sckt, msg, strlen(msg)) < 0) {
+            perror("Error : ");
+        }
+    }
+}
 
+void send_tar_to_client(int fd, char *tar_path) {
+    int file = open(tar_path, O_RDONLY);
+    // handle error
+    if (file < 0)
+    {
+        perror("Error in opening the temp.tar.gz file");
+    }
+
+    char buffer[1024];
+    ssize_t nBytes;
+    while ((nBytes = read(file, buffer, sizeof(buffer))) > 0)
+    {
+        if (write(fd, buffer, nBytes) == -1)
+            perror("Sending file failed");
+
+        if (nBytes < sizeof(buffer))
+            break;
+    }
+    close(file);
+}
+
+/**
+ * Initializing the server by  opening a  server socket(file descriptor)
+ *, binding to a port and start listening for the request from the client
+ * @param fd_server
+ * @param address_srvr
+ * @return
+ */
 int init_server(int *fd_server, struct sockaddr_in address_srvr) {
 
     int opt = 1; //option for server socket
@@ -159,6 +204,8 @@ void handle_listdir_rqst(int fd, const char* command, char*** response) {
         }
 
         send_msg_chars(fd, *response);
+    } else {
+        send_error_msg(fd, MSG_RES_SERVER_404);
     }
 
 
@@ -193,17 +240,17 @@ void handle_fs_name(int fd_clnt_sckt, char** rqst) {
             perror("Error while sending file details using name ");
         }
     } else {
-        if(write(fd_clnt_sckt, MSG_RES_SERVER_404, strlen(MSG_RES_SERVER_404)) < 0) {
-            perror("Error : ");
-        }
+        send_error_msg(fd_clnt_sckt, MSG_RES_SERVER_404);
     }
+
+    free(dir_home);
+    free(fs_details_res);
 }
 
 /*
  * reading request from the client
  */
 int get_request(int fd_client, char* rqst, size_t sz_rqst) {
-
 
     ssize_t n_rb = read(fd_client, rqst, sz_rqst);
     if(n_rb <=0) {
@@ -214,23 +261,62 @@ int get_request(int fd_client, char* rqst, size_t sz_rqst) {
 }
 
 void handle_fs_size(int fd, char** rqst, int n_args) {
-//    if(n_args < 3 || !is_number(rqst[1]) || !is_number(rqst[2])) {
-//        perror("Invalid arguments to search for file using size");
-//        return;
-//    }
+    if(n_args < 3 || !is_number(rqst[1]) || !is_number(rqst[2])) {
+        perror("Invalid arguments to search for file using size");
+        return;
+    }
 
     char* dir_home = expand_if_tilda("~");
+    //TODO: REMOVE THIS DIR, IT IS FOR TESTING PURPOSE
     char* dir = "/Users/anujp/Downloads/ASP";
     char* storage = "/Users/anujp/Downloads/tempstore/";
-    char* path_to_tar = file_search_size(dir, storage, 100, 800);
+    char* path_to_tar = file_search_size(dir, storage, atoll(rqst[1]), atoll(rqst[2]));
 
+    if(path_to_tar != NULL) {
+        //sending the file after creating the tar
+    } else {
+        if(write(fd, MSG_RES_SERVER_404, strlen(MSG_RES_SERVER_404)) < 0) {
+            perror("Error : ");
+        }
+    }
 
+    free(dir_home);
     printf("comes here.... %s", path_to_tar);
 }
 
-void handle_fs_date(int fd, char** rqst, int n_args) {
+void handle_fs_ext(int fd, char** rqst, int n_args) {
+    if(n_args > 4) {
+        perror("Invalid arguments to search for file using size");
+        return;
+    }
 
+    char* path_to_tar;
+    char* dir_home = expand_if_tilda("~");
+//    for(int i=1; i<n_args; i++){
+        path_to_tar = f_extension_search("/Users/anujp/Downloads/ASP", "/Users/anujp/Downloads/tempstore/", rqst[1], n_args);
+//    }
+    printf("Tar path: %s\n", path_to_tar);
 
+    write(fd, "TAR", 3);
+
+    send_tar_to_client(fd, path_to_tar);
+}
+
+void handle_fs_date(int fd, char** rqst, int n_args, int dt_cmp) {
+    char* dir_home = expand_if_tilda("~");
+
+    char* dir = "/Users/anujp/Downloads/ASP";
+    char* storage = "/Users/anujp/Downloads/tempstore/";
+    char* path_to_tar = file_search_dt(dir, storage, rqst[1], dt_cmp);
+
+    if(path_to_tar != NULL) {
+        //TODO:sending the file after creating the tar
+        printf("comes here.... %s", path_to_tar);
+    } else{
+
+    }
+
+    free(dir_home);
 }
 
 
@@ -260,51 +346,57 @@ int send_msg_chars(int fd_sckt, char** msg) {
  * @param fd_clnt_sckt file descriptor for client connection socket
  * @return 0 if the request is processed successfully, -1 otherwise.
  */
-int process_request(int fd_clnt_sckt) {
+void process_request(int fd_clnt_sckt) {
 
-    char* rqst = malloc(sizeof(char)* MAX_BUFFER_RR_SIZE);
-    if(get_request(fd_clnt_sckt, rqst, MAX_BUFFER_RR_SIZE) < 0) {
-        perror("error reading request");
-    }
+    while(1) {
+        char *rqst = malloc(sizeof(char) * MAX_BUFFER_RR_SIZE);
+        if (get_request(fd_clnt_sckt, rqst, MAX_BUFFER_RR_SIZE) < 0) {
+            perror("error reading request");
+        }
 
-    int num_tokens;
-    char** cmd_vector = tokenize(rqst, C_SPACE, &num_tokens);
-    if(cmd_vector == NULL || num_tokens < 2) {
-        perror("error tokenizing request");
-        return -1;
-    }
+        int num_tokens;
+        char **cmd_vector = tokenize(rqst, C_SPACE, &num_tokens);
+        if (cmd_vector == NULL || num_tokens < 2) {
+            perror("error tokenizing request");
+            send_error_msg(fd_clnt_sckt, MSG_RES_SERVER_ERR);
+            continue;
+        }
 
-    printf("Request : %s\n", rqst);
-    char **response = NULL;
-    if(strcmp(rqst, CMD_LIST_DIR_SRTD_NAME) == 0) {
-        handle_fs_size(fd_clnt_sckt, cmd_vector, num_tokens);
+        printf("Request : %s\n", rqst);
+        char **response = NULL;
+        if (strcmp(rqst, CMD_LIST_DIR_SRTD_NAME) == 0) {
+            handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_NAME, &response);
+        } else if (strcmp(rqst, CMD_LIST_DIR_SRTD_MTIME) == 0) {
+            handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_MTIME, &response);
+        } else if (cmd_vector[0] != NULL && strcmp(cmd_vector[0], CMD_FILE_SRCH_NAME) == 0) {
+            handle_fs_name(fd_clnt_sckt, cmd_vector);
+        } else if (strcmp(cmd_vector[0], CMD_FILE_SRCH_SIZE) == 0) {
+            handle_fs_size(fd_clnt_sckt, cmd_vector, num_tokens);
+        } else if (strcmp(cmd_vector[0], CMD_FILE_SRCH_DATE_BF) == 0) {
+            handle_fs_date(fd_clnt_sckt, cmd_vector, num_tokens, -1);
+        } else if (strcmp(cmd_vector[0], CMD_FILE_SRCH_DATE_DA) == 0) {
+            handle_fs_date(fd_clnt_sckt, cmd_vector, num_tokens, 1);
+        } else if (strcmp(cmd_vector[0], CMD_FILE_SRCH_EXT) == 0) {
+            handle_fs_ext(fd_clnt_sckt, cmd_vector, num_tokens);
+        } else if (strcmp(cmd_vector[0], CMD_CLIENT_QUIT) == 0) {
+            //Quit must release all resources exclusively
+            free(rqst);
+            free_array((void **) response);
+            free_array((void **) cmd_vector);
+            close(fd_clnt_sckt);
+            exit(EXIT_SUCCESS);
+        } else {
+            send_error_msg(fd_clnt_sckt, MSG_RES_SERVER_INVALID_COMMAND);
+        }
 
-//        handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_NAME, &response);
-    } else if(strcmp(rqst, CMD_LIST_DIR_SRTD_MTIME) == 0) {
-        handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_MTIME, &response);
-    } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_NAME) == 0) {
-        handle_fs_name(fd_clnt_sckt, cmd_vector);
-    } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_SIZE) == 0) {
-        handle_fs_size(fd_clnt_sckt, cmd_vector, num_tokens);
-    } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_DATE) == 0) {
-        handle_fs_date(fd_clnt_sckt, cmd_vector, num_tokens);
-    } else if(strcmp(cmd_vector[0], CMD_CLIENT_QUIT) == 0) {
-        //Quit must release all resources exclusively
+        //free up the memory
+        printf("releasing memory...\n");
         free(rqst);
         free_array((void **) response);
         free_array((void **) cmd_vector);
-        close(fd_clnt_sckt);
-        exit(EXIT_SUCCESS);
+        printf("done with processing the request ...\n");
     }
 
-    //free up the memory
-    printf("pass....1\n");
-    free(rqst);
-    printf("pass....2\n");
-    free_array((void **) response);
-    printf("pass....3\n");
-//    free_array((void **) cmd_vector);
-    printf("pass....4\n");
-    printf("done with processing the request ...\n");
-    return 0;
 }
+
+

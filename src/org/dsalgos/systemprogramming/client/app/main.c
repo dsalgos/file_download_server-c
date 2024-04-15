@@ -1,76 +1,231 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <errno.h>
+#include <fcntl.h>
 #include <string.h>
-#include <netdb.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define PORT 8080
-#define MAXSIZE 1024
+#define MAX_ARGS 10
 
-int main(int argc, char *argv[])
+char command[];
+char *args[MAX_ARGS];
+void (*existing_handler)();
+
+void tokenize(char *input){
+    int num_args = 0;
+    char *token = strtok(input, " ");
+    strcpy(command, token);
+    char *arg = strtok(NULL, " ");
+    while (arg != NULL && num_args < MAX_ARGS) {
+        args[num_args] = arg;
+        arg = strtok(NULL, " ");
+        num_args++;
+    }
+}
+
+int validate_date(const char *dateStr) {
+    struct tm timeStruct;
+
+    // Parse the date string
+    if (strptime(dateStr, "%d/%m/%Y", &timeStruct) == NULL) {
+        return -1;
+    } else {
+        time_t currentTime = time(NULL);
+        struct tm *localTime = localtime(&currentTime);
+        int today_year = localTime->tm_year + 1900;
+        int today_month = localTime->tm_mon + 1;
+        int today_day = localTime->tm_mday;
+        int year = timeStruct.tm_year + 1900;
+        int month = timeStruct.tm_mon + 1;
+        int day = timeStruct.tm_mday;
+        if (month == 2) {
+            if ((year % 4 == 0 && year % 100 != 0) || year % 400 == 0) {
+                if (day > 29) {
+                    return -1;
+                }
+            } else {
+                if (day > 28) {
+                    return -1;
+                }
+            }
+        } else if (month == 4 || month == 6 || month == 9 || month == 11) {
+            if (day > 30) {
+                return -1;
+            }
+        } else if (day > 31) {
+            return -1;
+        }
+        if (year > today_year ||
+            ((year == today_year) && (month > today_month)) ||
+            ((year == today_year) && (month == today_month) && (day > today_day))) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+int is_arg_number(const char *number_str) {
+    int number = atoi(number_str);
+    if (number <= 0) {
+        return -1;
+    }
+    return 0;
+}
+
+int verify_input(){
+    if (strcmp(command, "dirlist") == 0){
+        if(strcmp(args[0], "-a")) {
+            return 0;
+        } else if(strcmp(args[0], "-t")) {
+            return 0;
+        } else {
+            return -1;
+        }
+    } else if (strcmp(command, "w24fn") == 0) {
+        return 0;
+    } else if(strcmp(command, "w24fz") == 0) {
+        int count = 0;
+        for (int i = 0; args[i] != NULL && count < 2; i++) {
+            if (is_arg_number(args[i]) == -1) {
+                return -1;
+            }
+            count++;
+        }
+        if (count > 2) {
+            printf("Too many arguments, expected less than 2\n");
+            return -1;
+        }
+        return 0;
+    } else if (strcmp(command, "w24ft") == 0) {
+        int count = 0;
+        for (int i = 0; args[i] != NULL && count < 2; i++) {
+            count++;
+        }
+        if (count > 3) {
+            return -1;
+        }
+        return 0;
+    } else if (strcmp(command, "w24fd") == 0) {
+        return(validate_date(args[0]));
+    } else if (strcmp(command, "w24fa") == 0) {
+        return(validate_date(args[0]));
+    } else if (strcmp(command, "quit") == 0) {
+        signal(SIGINT, existing_handler);
+        return 9;
+    } else {
+        printf("Command not part of server functionality\n");
+        return -1;
+    }
+}
+
+void receive_file(int file_fd, int socket)
 {
-    struct sockaddr_in server_info;
-    struct hostent *he;
-    int socket_fd,num;
-    char *buffer = malloc(sizeof(char) * 1024);
-    char *buffer_copy = malloc(sizeof(char) * 1024);
-
-    char buff[1024];
-
-    if (argc != 2) {
-        fprintf(stderr, "Usage: client hostname\n");
-        exit(1);
+    //check error
+    if (file_fd < 0)
+    {
+        perror("Error creating file\n");
+        return;
     }
 
-    if ((he = gethostbyname(argv[1]))==NULL) {
-        fprintf(stderr, "Cannot get host name\n");
-        exit(1);
+    char buffer[1024];
+    int bytesReceived;
+
+    // read from the socket fd
+    while ((bytesReceived = read(socket, buffer, 1024)) > 0)
+    {
+        // printf("%d received\n", bytesReceived);
+        // write to the new tar file
+        write(file_fd, buffer, bytesReceived);
+
+        // if theno. of bytes received are less the buff size exit
+        // this means there are no more character in socket
+        if (bytesReceived < 1024)
+            break;
     }
 
-    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0))== -1) {
-        fprintf(stderr, "Socket Failure!!\n");
-        exit(1);
+    printf("Done\n");
+}
+
+int main() {
+    char input[256];
+    char from_server[256];
+    int spl_operation =0;
+    char spl_char;
+    char buffer[1024];
+    char buffer_copy[1024];
+    int server_socket;
+    int command_verification;
+    int bytesReceived;
+    struct sockaddr_in servAddr;
+
+    existing_handler = signal(SIGINT,SIG_IGN);
+
+    if ((server_socket= socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        printf("Failed to create socket\n");
+        return 1;
     }
 
-    memset(&server_info, 0, sizeof(server_info));
-    server_info.sin_family = AF_INET;
-    server_info.sin_port = htons(PORT);
-    server_info.sin_addr = *((struct in_addr *)he->h_addr);
-    if (connect(socket_fd, (struct sockaddr *)&server_info, sizeof(struct sockaddr))<0) {
-        perror("connect");
-        exit(1);
+    servAddr.sin_family = AF_INET;
+    servAddr.sin_port = htons(8080); // add port number
+    servAddr.sin_addr.s_addr = INADDR_ANY;
+    // if (inet_pton(AF_INET, "10.71.27.200", &servAddr.sin_addr) <= 0) {
+    //     perror("inet_pton");
+    //     return 1;
+    // }
+
+    if (connect(server_socket, (struct sockaddr *)&servAddr, sizeof(servAddr)) < 0)
+    {
+        printf("Connection failed\n");
+        return 1;
     }
 
-    printf("connected with fd %d\n", socket_fd);
+    read(server_socket, buffer, 1024);
 
     while (1) {
         printf("client$ ");
         memset(buffer, 0, sizeof(buffer));
         fgets(buffer, 1024, stdin);
-
         buffer[strcspn(buffer, "\n")] = '\0';
+        strcpy(buffer_copy, buffer);
 
-        // printf("%s ", buffer);
+        tokenize(buffer);
+        command_verification = verify_input();
 
-        send(socket_fd,buffer, strlen(buffer),0);
+        if(command_verification == 0){
+            send(server_socket,buffer_copy, strlen(buffer_copy),0);
 
-        memset(buffer, 0, sizeof(buffer));
+            memset(buffer, 0, sizeof(buffer));
 
+            read(server_socket, buffer, 1024);
+            printf("Received Response:\n%s\n", buffer);
 
-        while((num =  read(socket_fd, buffer, 1024)) > 0) {
-            printf("inside while\n");
-            printf("%s", buffer);
-            if(num < 1024) {
-                break;
+            if(strcmp(buffer, "TAR") == 0){
+                int fileDescriptor = open("temp.tar.gz", O_WRONLY | O_CREAT | O_TRUNC, 0777);
+
+                printf("Receiving the file ....\n");
+
+                read(server_socket, buffer, 1024);
+                memset(buffer, '\0', sizeof(buffer));
+                //TODO:
+                //Have to check if it works for bigger tar file. More than the mentioned size
+
+                printf("File received\n");
+
+                close(fileDescriptor);
+            } else {
+                //Other stuff
             }
+        } else if(command_verification == 9){
+            break;
         }
-        printf("Received Response:\n%s\n", buffer);
     }
-    close(socket_fd);
 
+    return 0;
 }

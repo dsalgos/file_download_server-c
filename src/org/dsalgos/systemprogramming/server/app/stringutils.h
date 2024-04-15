@@ -11,6 +11,9 @@
 
 
 #include <string.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 //constant literals
 const char C_SPACE = ' ';
@@ -186,6 +189,7 @@ char *get_permissions(mode_t mode) {
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <limits.h>
 
 char *ulong_to_string(unsigned long value) {
     int num_digits = 0;
@@ -215,7 +219,6 @@ char *ulong_to_string(unsigned long value) {
 
     return result;
 }
-
 
 int is_number(char* str) {
     if(str == NULL) {

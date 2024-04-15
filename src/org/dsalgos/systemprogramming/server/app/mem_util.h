@@ -22,7 +22,9 @@ void free_array(void** arr) {
             free(arr[i]);
         }
     }
-    free(arr);
+    if(arr != NULL) {
+        free(arr);
+    }
 }
 
 void free_dentry(struct dentry *entry, int count) {
