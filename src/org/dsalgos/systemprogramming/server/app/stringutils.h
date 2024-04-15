@@ -98,7 +98,7 @@ int extcmp(const char* f_name, char* ext) {
 //rather than dynamically allocating memory again and again.
 //the idea is similar to how StringBuilder works in Java
 void recycle_str(char* ptr_str, unsigned long pos) {
-    if(ptr_str == NULL || (pos < 0 || pos >= strlen(ptr_str))) {
+    if(ptr_str == NULL || (pos >= strlen(ptr_str))) {
         return;
     }
 
@@ -185,6 +185,7 @@ char *get_permissions(mode_t mode) {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 char *ulong_to_string(unsigned long value) {
     int num_digits = 0;
@@ -213,4 +214,19 @@ char *ulong_to_string(unsigned long value) {
     }
 
     return result;
+}
+
+
+int is_number(char* str) {
+    if(str == NULL) {
+        return -1;
+    }
+
+    for(int i = 0; i < strlen(str); i++) {
+        if(!isdigit(str[i])) {
+            return -1;
+        }
+    }
+
+    return 0;
 }

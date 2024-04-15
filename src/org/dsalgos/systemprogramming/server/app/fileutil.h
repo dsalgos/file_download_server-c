@@ -42,12 +42,13 @@ const char* msg_file_not_found = "Search Unsuccessful.";
 
 //string literals
 const char* cmd_tar = "tar -cf ";
-const char* name_tar = "a1.tar";
+const char* name_tar = "temp.tar.gz";
 const char c_extsn = '.'; // to find the file extension
+char *d_storg_path = NULL;
 
 //global variables
 char *f_path_tracker = NULL;
-char *d_storg_path = NULL;
+
 char* user_input_file_name =  NULL;
 char* usr_f_extension = NULL;
 struct fdetails* fs_details;
@@ -59,6 +60,7 @@ ssize_t max_f_sz = 1024;
 unsigned long ufs_ctime = 0;
 
 //integer returning functions.
+int create_temp_tar_gz(const char *dirpath);
 int d_compare_name(const void *entry1, const void *entry2);
 int d_compare_modified(const void *x_time, const void *y_time);
 int copy_file_fd(int fd_src, int fd_dest);
@@ -72,7 +74,7 @@ int f_callback_dt(const char *path_current, const struct stat *f_stat, int f_typ
 int f_callback_extsn(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw);
 
 struct fdetails* file_search(const char* root_path, const char* file_name);
-struct fdetails* file_search_size(const char* root_path, ssize_t sz_min, ssize_t sz_max);
+char* file_search_size(const char* root_path, char* storage_path, int sz_min, int sz_max);
 
 //string returning functions.
 char* expand_if_tilda(char *command);
@@ -143,7 +145,7 @@ struct fdetails* file_search(const char* root_path, const char* file_name) {
  * @param file_name
  * @return
  */
-struct fdetails* file_search_size(const char* root_path, const ssize_t sz_min, const ssize_t sz_max) {
+char* file_search_size(const char* root_path, char* storage_path, const int sz_min, const int sz_max) {
 
     //let's free up the memory to make sure there are no leaks.
     //don't want to take the risk of freeing up the same memory twice.
@@ -160,6 +162,7 @@ struct fdetails* file_search_size(const char* root_path, const ssize_t sz_min, c
 
     //handling the checks to
     if(root_path == NULL
+            || storage_path == NULL
             || sz_min < 0
             || sz_max < sz_min
             || sz_max < 0) {
@@ -169,9 +172,7 @@ struct fdetails* file_search_size(const char* root_path, const ssize_t sz_min, c
 
     //tracking the user
     //setting variable to be used by the callback method
-    fs_details = malloc(sizeof(f_details_entry));
-    fn_cp_handle = copy_file;
-    d_storg_path = strdup(root_path);
+    d_storg_path = strdup(storage_path);
     min_f_sz = sz_min;
     max_f_sz = sz_max;
     int code = nftw(root_path, f_callback_bsize, F_OPEN_LIMIT, FTW_PHYS);
@@ -180,17 +181,22 @@ struct fdetails* file_search_size(const char* root_path, const ssize_t sz_min, c
         return NULL;
     }
 
-    if(found_file != 1) {
-        printf("\n%s ", msg_file_not_found);
+
+    if(f_path_tracker != NULL) {
+        free(f_path_tracker); //in case of returning NULL, let's free up the memory.
     }
 
-    if(code == CODE_FILE_FOUND) {
-        printf("%s", " Search successful. ");
-        return fs_details;
+    int is_tar = create_temp_tar_gz(d_storg_path);
+
+    char* tar_path = malloc(sizeof(char) * (strlen(d_storg_path)+ strlen(name_tar)+1));
+    if(is_tar == 0) {
+        strcpy(tar_path, d_storg_path);
+        strcat(tar_path, name_tar);
     } else {
-        free(f_path_tracker); //in case of returning NULL, let's free up the memory.
+        free(tar_path);
         return NULL;
     }
+    return tar_path;
 }
 
 /**
@@ -223,17 +229,9 @@ int f_callback_name(const char *path_current, const struct stat *f_stat, int f_t
             //though nftw will also return the same code but need to
             // return some other value from the caller function.
             if(fs_details != NULL) {
-                printf("File details are : \n");
-                printf("Name : %s\n", f_current);
-                printf("Name : %s\n", ulong_to_string(f_stat->st_size));
-                printf("Name : %s\n", get_permissions(f_stat->st_mode));
                 fs_details->f_name = strdup(f_current);
                 fs_details->f_size = strdup(ulong_to_string(f_stat->st_size));
                 fs_details->f_mode = strdup(get_permissions(f_stat->st_mode));
-                printf("File details are : \n");
-                printf("Name : %s\n", fs_details->f_name);
-                printf("Name : %s\n", fs_details->f_size);
-                printf("Name : %s\n", fs_details->f_mode);
             }
             found_file = 1;
             printf("\n%s %s ", "Search successful. Absolute path is - ", f_path_tracker);
@@ -323,36 +321,16 @@ int f_callback_bsize(const char *path_current, const struct stat *f_stat, int f_
         //and then f_current contains the pointer to location
         //in a char* where the file_name starts.
         const char *f_current = path_current + ptr_struct_ftw->base;
-
-        if(usr_f_extension == NULL || min_f_sz < 0 || max_f_sz < 0) {
-            return 1;
-        }
-
-        if((f_stat->st_blksize >= min_f_sz && f_stat->st_blksize <= max_f_sz)) {
+        if (f_current != NULL && (f_stat->st_size >= min_f_sz && f_stat->st_size <= max_f_sz)) {
             realpath(path_current, f_path_tracker);
-            printf("\n%s %s ", "Search successful. Absolute path is - ", f_path_tracker);
-
-            //if this function pointer is not NULL, that means the call is made to nftw() via
-            //file_search_size, which indeed requires to not just find the files with provided extension
-            //but also process them to create a .tar file
-            //this function will help to copy all the files found as per extension match to a
-            //storage directory
-            if(fn_cp_handle != NULL && d_storg_path != NULL) {
-                strcat(d_storg_path, SYMBOL_FWD_SLASH);
-                unsigned long pos_slash = strlen(d_storg_path) -1;
-
-                strcat(d_storg_path, f_current);
-                printf("\n storage path : %s\n", d_storg_path);
-                fn_cp_handle(f_path_tracker, d_storg_path);
-
-                //putting a logic to reuse the existing string memory.
-                recycle_str(d_storg_path, pos_slash);
-                printf(" \nresuming storage path : %s\n", d_storg_path);
-            }
-
-            //not returning anything here. The search must be continued for all the files.
-            //in case of extension file search.
-
+            //start copying the file into storage directory
+            char* dest_path = malloc(sizeof(char) * (strlen(f_current) + strlen(d_storg_path)+1));
+            strcpy(dest_path, d_storg_path);
+            strcat(dest_path, f_current);
+//            printf("\ncurrent path %s", f_path_tracker);
+//            printf("\nStorage directory is  %s, and file name is %s , original name %s", d_storg_path, dest_path, f_current);
+            copy_file(f_path_tracker, dest_path);
+            free(dest_path);
         }
     }
 
@@ -723,5 +701,39 @@ int list_dir_sort(char* d_path, struct dentry** list, int (*sort_compare)(const 
     }
 
     closedir(_d);
+    return 0;
+}
+
+
+int create_temp_tar_gz(const char *dirpath) {
+    if (!dirpath) {
+        return -1; // Error: filepath is NULL
+    }
+
+    // Construct the archive filename with full path based on dirpath
+    char archive_name[PATH_MAX];
+    snprintf(archive_name, PATH_MAX, "%s/%s", dirpath, name_tar);
+
+    // Shell command to create the archive in the same directory
+    int ret = snprintf(NULL, 0, "tar -czvf %s %s", archive_name, dirpath);
+    if (ret < 0) {
+        perror("snprintf");
+        return -1;
+    }
+
+    char command[ret + 1];
+    snprintf(command, ret + 1, "tar -czvf %s %s", archive_name, dirpath);
+
+    // Execute the shell command using system
+    ret = system(command);
+    if (ret == -1) {
+        perror("system");
+        return -1;
+    } else if (ret != 0) {
+        // Handle non-zero return code from system (e.g., tar errors)
+        fprintf(stderr, "Error: tar command failed with code %d\n", ret);
+        return -1;
+    }
+
     return 0;
 }

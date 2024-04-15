@@ -21,7 +21,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -34,13 +33,14 @@
 #include <stdbool.h>
 #include <limits.h>
 
+
 #include "fileutil.h"
 #include "mem_util.h"
 
 //command literals
 char* CMD_LIST_DIR_SRTD_NAME = "dirlist -a";
 char* CMD_LIST_DIR_SRTD_MTIME = "dirlist -t";
-char* CMD_FILE_SRCH_NAME = "w24fs";
+char* CMD_FILE_SRCH_NAME = "w24fn";
 char* CMD_FILE_SRCH_SIZE = "w24fz";
 char* CMD_FILE_SRCH_EXT = "w24ft";
 char* CMD_FILE_SRCH_DATE = "w24fdb";
@@ -214,15 +214,18 @@ int get_request(int fd_client, char* rqst, size_t sz_rqst) {
 }
 
 void handle_fs_size(int fd, char** rqst, int n_args) {
-    if(n_args < 3) {
-        perror("Invalid arguments to search for file using size");
-        return;
-    }
+//    if(n_args < 3 || !is_number(rqst[1]) || !is_number(rqst[2])) {
+//        perror("Invalid arguments to search for file using size");
+//        return;
+//    }
 
     char* dir_home = expand_if_tilda("~");
-    file_search_size(dir_home, atoi(rqst[1]), atoi(rqst[2]));
+    char* dir = "/Users/anujp/Downloads/ASP";
+    char* storage = "/Users/anujp/Downloads/tempstore/";
+    char* path_to_tar = file_search_size(dir, storage, 100, 800);
 
 
+    printf("comes here.... %s", path_to_tar);
 }
 
 void handle_fs_date(int fd, char** rqst, int n_args) {
@@ -274,7 +277,9 @@ int process_request(int fd_clnt_sckt) {
     printf("Request : %s\n", rqst);
     char **response = NULL;
     if(strcmp(rqst, CMD_LIST_DIR_SRTD_NAME) == 0) {
-       handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_NAME, &response);
+        handle_fs_size(fd_clnt_sckt, cmd_vector, num_tokens);
+
+//        handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_NAME, &response);
     } else if(strcmp(rqst, CMD_LIST_DIR_SRTD_MTIME) == 0) {
         handle_listdir_rqst(fd_clnt_sckt, CMD_LIST_DIR_SRTD_MTIME, &response);
     } else if(strcmp(cmd_vector[0], CMD_FILE_SRCH_NAME) == 0) {
@@ -293,9 +298,13 @@ int process_request(int fd_clnt_sckt) {
     }
 
     //free up the memory
+    printf("pass....1\n");
     free(rqst);
+    printf("pass....2\n");
     free_array((void **) response);
-    free_array((void **) cmd_vector);
+    printf("pass....3\n");
+//    free_array((void **) cmd_vector);
+    printf("pass....4\n");
     printf("done with processing the request ...\n");
     return 0;
 }
