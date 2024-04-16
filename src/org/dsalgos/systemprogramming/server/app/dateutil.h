@@ -54,6 +54,23 @@ time_t get_file_creation_time(struct stat file_stat) {
     return to_seconds(buffer);
 }
 
+char* tmtodt(struct stat file_stat) {
+
+    // Get creation time as time_t
+    time_t creation_time = file_stat.st_birthtimespec.tv_sec;
+
+    // Convert timestamp to formatted string
+    struct tm *local_time = localtime(&creation_time);
+    if (!local_time) {
+        perror("localtime");
+        return NULL;
+    }
+    char buffer[20];
+    strftime(buffer, 20, "%d/%m/%Y", local_time);
+
+    return strdup(buffer);
+}
+
 int is_before(time_t f_date, time_t u_date) {
     return f_date <= u_date ? 0 : 1;
 }

@@ -163,9 +163,10 @@ int main() {
     int command_verification;
     int bytesReceived;
     struct sockaddr_in servAddr;
-
+    int srvr_list[] = {8080, 8090,9000, 9010, 9020};
+    int counter = 0;
     existing_handler = signal(SIGINT,SIG_IGN);
-
+    start:
     if ((server_socket= socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         printf("Failed to create socket\n");
@@ -173,59 +174,74 @@ int main() {
     }
 
     servAddr.sin_family = AF_INET;
-    servAddr.sin_port = htons(8080); // add port number
+    servAddr.sin_port = htons(srvr_list[counter]); // add port number
     servAddr.sin_addr.s_addr = INADDR_ANY;
-    // if (inet_pton(AF_INET, "10.71.27.200", &servAddr.sin_addr) <= 0) {
-    //     perror("inet_pton");
-    //     return 1;
-    // }
 
+    printf("trying to connect on port %d\n", srvr_list[counter]);
     if (connect(server_socket, (struct sockaddr *)&servAddr, sizeof(servAddr)) < 0)
     {
         printf("Connection failed\n");
         return 1;
     }
 
-    read(server_socket, buffer, 1024);
-
+//    read(server_socket, buffer, 3);
+    char busy[5];
+    int n_bytes = recv(server_socket, busy, sizeof(busy) - 1, 0);
+    busy[n_bytes] = '\0';
+    printf(" received msg : %s", busy);
+    if (strcmp(busy, "BUSY") == 0){
+        printf("received from server %s", busy);
+        //current server is busy try the next one
+        n_bytes = recv(server_socket, buffer, sizeof(buffer) - 1, 0);
+        buffer[n_bytes] = '\0';
+        printf("received from server buffer %s", buffer);
+        counter = atoi(buffer);
+        close(server_socket);
+        goto start;
+    }
     while (1) {
-        printf("client$ ");
-        memset(buffer, 0, sizeof(buffer));
-        fgets(buffer, 1024, stdin);
-        buffer[strcspn(buffer, "\n")] = '\0';
-        strcpy(buffer_copy, buffer);
-
-        tokenize(buffer);
-        command_verification = verify_input();
-
-        if(command_verification == 0){
-            send(server_socket,buffer_copy, strlen(buffer_copy),0);
-
+            printf("client$ ");
             memset(buffer, 0, sizeof(buffer));
+            fgets(buffer, 1024, stdin);
+            buffer[strcspn(buffer, "\n")] = '\0';
+            strcpy(buffer_copy, buffer);
 
-            read(server_socket, buffer, 1024);
-            printf("Received Response:\n%s\n", buffer);
+            tokenize(buffer);
+            command_verification = verify_input();
 
-            if(strcmp(buffer, "TAR") == 0){
-                int fileDescriptor = open("temp.tar.gz", O_WRONLY | O_CREAT | O_TRUNC, 0777);
+            if(command_verification == 0){
+                send(server_socket,buffer_copy, strlen(buffer_copy),0);
 
-                printf("Receiving the file ....\n");
+                memset(buffer, 0, sizeof(buffer));
 
                 read(server_socket, buffer, 1024);
-                memset(buffer, '\0', sizeof(buffer));
-                //TODO:
-                //Have to check if it works for bigger tar file. More than the mentioned size
+                printf("Received Response:\n%s\n", buffer);
 
-                printf("File received\n");
+                if(strcmp(buffer, "TAR") == 0){
+                    int fileDescriptor = open("temp.tar.gz", O_WRONLY | O_CREAT | O_TRUNC, 0777);
 
-                close(fileDescriptor);
-            } else {
-                //Other stuff
+                    printf("Receiving the file ....\n");
+
+                    receive_file(fileDescriptor, server_socket);
+                    memset(buffer, '\0', sizeof(buffer));
+                    //TODO:
+                    //Have to check if it works for bigger tar file. More than the mentioned size
+
+                    printf("File received\n");
+
+                    close(fileDescriptor);
+                } else if(strcmp(buffer, "TXT") == 0){
+                    while((bytesReceived = read(server_socket, buffer, 1024)) > 0){
+                        printf("%s", buffer);
+                        memset(buffer, 0, sizeof(buffer));
+                    }
+                } else if(strcmp(buffer, "ERR") == 0){
+                    //ERROR HANDLING
+                }
+            } else if(command_verification == 9){
+                break;
             }
-        } else if(command_verification == 9){
-            break;
         }
-    }
 
     return 0;
 }

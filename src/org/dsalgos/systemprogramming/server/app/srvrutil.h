@@ -47,6 +47,7 @@ const char* CMD_FILE_SRCH_EXT = "w24ft";
 const char* CMD_FILE_SRCH_DATE_BF = "w24fdb";
 const char* CMD_FILE_SRCH_DATE_DA = "w24fda";
 const char* CMD_CLIENT_QUIT = "quit";
+const char* MSG_RES_REDIRECT = "BUSY";
 const char* MSG_RES_SERVER = "RESPONSE :\n";
 const char* MSG_RES_SERVER_404 = "File not found.\n";
 const char* MSG_RES_SERVER_INVALID_COMMAND = "Invalid command\n";
@@ -65,7 +66,7 @@ void handle_fs_ext(int fd, char** rqst, int n_args);
  * @param port_local
  * @return
  */
-int init_server(int *fd_server, struct sockaddr_in address_srvr);
+int init_server(int *fd_server, struct sockaddr_in address_srvr, int port);
 
 //integer return
 void process_request(int fd_clnt_sckt);
@@ -80,12 +81,23 @@ int listen_sckt();
  * @param fd_clnt_sckt
  * @param msg
  */
-void send_error_msg(int fd_clnt_sckt, const char* msg) {
+void send_msg(int fd_clnt_sckt, const char* msg) {
     if(msg != NULL) {
         if (write(fd_clnt_sckt, msg, strlen(msg)) < 0) {
             perror("Error : ");
         }
     }
+}
+
+/**
+ * Sending a redirect signal to the client
+ * @param fd_client
+ */
+void redirect_to_mirror(int fd_client, int n_clients) {
+    int srvr_idx = (((n_clients) % 9) / 3);
+    send_msg(fd_client, MSG_RES_REDIRECT);
+    send_msg(fd_client, ulong_to_string(srvr_idx));
+    close(fd_client);
 }
 
 void send_tar_to_client(int fd, char *tar_path) {
@@ -116,7 +128,7 @@ void send_tar_to_client(int fd, char *tar_path) {
  * @param address_srvr
  * @return
  */
-int init_server(int *fd_server, struct sockaddr_in address_srvr) {
+int init_server(int *fd_server, struct sockaddr_in address_srvr, int port) {
 
     int opt = 1; //option for server socket
 
@@ -140,7 +152,7 @@ int init_server(int *fd_server, struct sockaddr_in address_srvr) {
     memset(&address_srvr, 0, sizeof(address_srvr));
     address_srvr.sin_family = AF_INET;
     address_srvr.sin_addr.s_addr = INADDR_ANY; // accepts any address
-    address_srvr.sin_port = htons(PORT);
+    address_srvr.sin_port = htons(port);
 
     // Bind socket to the PORT
     if (bind(*fd_server, (struct sockaddr *)&address_srvr, sizeof(address_srvr)) < 0)
@@ -202,10 +214,10 @@ void handle_listdir_rqst(int fd, const char* command, char*** response) {
         for(int i = 0; i < count_dir; i++) {
             printf("copied directory is %s", (*response)[i]);
         }
-
+        send_msg(fd, "TXT");
         send_msg_chars(fd, *response);
     } else {
-        send_error_msg(fd, MSG_RES_SERVER_404);
+        send_msg(fd, MSG_RES_SERVER_404);
     }
 
 
@@ -227,6 +239,8 @@ void handle_fs_name(int fd_clnt_sckt, char** rqst) {
     printf(" file permissions : %s\n", fs_details_res->f_mode);
 
     if(fs_details_res != NULL) {
+        send_msg(fd_clnt_sckt, "TXT");
+
         ssize_t error = 0;
         error = write(fd_clnt_sckt, MSG_RES_SERVER, strlen(MSG_RES_SERVER)) < 0 ? -1 : error;
         error = write(fd_clnt_sckt, fs_details->f_name, strlen(fs_details->f_name)) < 0 ? -1 : error;
@@ -234,13 +248,15 @@ void handle_fs_name(int fd_clnt_sckt, char** rqst) {
         error = write(fd_clnt_sckt, fs_details->f_size, strlen(fs_details->f_size)) < 0 ? -1 : error;
         error = write(fd_clnt_sckt, C_NEW_LINE, sizeof(char)) < 0 ? -1 : error;
         error = write(fd_clnt_sckt, fs_details->f_mode, strlen(fs_details->f_mode)) < 0 ? -1 : error;
+        error = write(fd_clnt_sckt, C_NEW_LINE, sizeof(char)) < 0 ? -1 : error;
+        error = write(fd_clnt_sckt, fs_details->f_ctime, strlen(fs_details->f_ctime)) < 0 ? -1 : error;
 
 
         if (error != 0) {
             perror("Error while sending file details using name ");
         }
     } else {
-        send_error_msg(fd_clnt_sckt, MSG_RES_SERVER_404);
+        send_msg(fd_clnt_sckt, MSG_RES_SERVER_404);
     }
 
     free(dir_home);
@@ -273,7 +289,9 @@ void handle_fs_size(int fd, char** rqst, int n_args) {
     char* path_to_tar = file_search_size(dir, storage, atoll(rqst[1]), atoll(rqst[2]));
 
     if(path_to_tar != NULL) {
-        //sending the file after creating the tar
+        write(fd, "TAR", 3);
+
+        send_tar_to_client(fd, path_to_tar);
     } else {
         if(write(fd, MSG_RES_SERVER_404, strlen(MSG_RES_SERVER_404)) < 0) {
             perror("Error : ");
@@ -310,10 +328,14 @@ void handle_fs_date(int fd, char** rqst, int n_args, int dt_cmp) {
     char* path_to_tar = file_search_dt(dir, storage, rqst[1], dt_cmp);
 
     if(path_to_tar != NULL) {
-        //TODO:sending the file after creating the tar
-        printf("comes here.... %s", path_to_tar);
-    } else{
+        write(fd, "TAR", 3);
 
+        send_tar_to_client(fd, path_to_tar);
+        printf("comes here.... %s", path_to_tar);
+    } else {
+        if(write(fd, MSG_RES_SERVER_404, strlen(MSG_RES_SERVER_404)) < 0) {
+            perror("Error : ");
+        }
     }
 
     free(dir_home);
@@ -327,14 +349,12 @@ void handle_fs_date(int fd, char** rqst, int n_args, int dt_cmp) {
  * @return
  */
 int send_msg_chars(int fd_sckt, char** msg) {
-    int n_bytes = 0;
     for(int i=0; msg[i] != NULL; i++) {
 
-        if((n_bytes = write(fd_sckt, msg[i], strlen(msg[i]))) < 0) {
+        if((write(fd_sckt, msg[i], strlen(msg[i]))) < 0) {
             perror("write failed ");
             return -1;
         }
-        printf("bytes sent : %d", n_bytes);
     }
 
     return 0;
@@ -358,7 +378,7 @@ void process_request(int fd_clnt_sckt) {
         char **cmd_vector = tokenize(rqst, C_SPACE, &num_tokens);
         if (cmd_vector == NULL || num_tokens < 2) {
             perror("error tokenizing request");
-            send_error_msg(fd_clnt_sckt, MSG_RES_SERVER_ERR);
+            send_msg(fd_clnt_sckt, MSG_RES_SERVER_ERR);
             continue;
         }
 
@@ -386,7 +406,7 @@ void process_request(int fd_clnt_sckt) {
             close(fd_clnt_sckt);
             exit(EXIT_SUCCESS);
         } else {
-            send_error_msg(fd_clnt_sckt, MSG_RES_SERVER_INVALID_COMMAND);
+            send_msg(fd_clnt_sckt, MSG_RES_SERVER_INVALID_COMMAND);
         }
 
         //free up the memory

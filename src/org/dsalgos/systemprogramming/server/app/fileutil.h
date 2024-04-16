@@ -301,6 +301,7 @@ int f_callback_name(const char *path_current, const struct stat *f_stat, int f_t
                 fs_details->f_name = strdup(f_current);
                 fs_details->f_size = strdup(ulong_to_string(f_stat->st_size));
                 fs_details->f_mode = strdup(get_permissions(f_stat->st_mode));
+                fs_details->f_ctime = tmtodt(*f_stat);
             }
             found_file = 1;
             printf("\n%s %s ", "Search successful. Absolute path is - ", f_path_tracker);

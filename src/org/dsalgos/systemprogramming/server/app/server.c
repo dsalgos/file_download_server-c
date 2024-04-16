@@ -42,16 +42,15 @@ void start_server(const struct sockaddr_in address_srvr, int fd_sckt_srvr) {
         // load balancing from server to mirror
         // if active clients less than =6 or is an odd no. after 12 connections
         // to be handled by server
-        if (no_of_clients <= 6 || (no_of_clients > 12 && no_of_clients % 2 == 1))
+        if ((((no_of_clients) % 9) / 3)  ==  0)
         {
             /// handle by server
             // sedn control message to client "CTS(Connected to server)"
             char** msg = malloc(sizeof(char*));
             msg[0] = "CTS";
-            printf("client fd : %d", fd_clnt_sckt);
             send_msg_chars(fd_clnt_sckt, msg);
 
-            printf("New connection from client: %s...\n", inet_ntoa(default_server_address.sin_addr));
+            printf("New connection from client: %s...\n", inet_ntoa(address_srvr.sin_addr));
             free(msg);
             /// fork a child and call process client func
             pid_t pid = fork();
@@ -75,33 +74,40 @@ void start_server(const struct sockaddr_in address_srvr, int fd_sckt_srvr) {
             else
             {
                 // parent process
-                printf("closing the client socket...");
+                printf("closing the listening socket...");
                 close(fd_clnt_sckt);
                 while (waitpid(-1, NULL, WNOHANG) > 0); // clean up zombie processes
             }
         }
         else
         {
-            //TODO:
             // redirecting to mirror server
-            // printf("Redirecting to mirror\n");
-//            redirect_to_mirror(new_skt);
+            printf("Redirecting to mirror\n");
+            redirect_to_mirror(fd_clnt_sckt, no_of_clients);
         }
 
         // increase counter for no of connections
         no_of_clients = (no_of_clients + 1) % INT_MAX;
+        printf("Client number : %d\n", no_of_clients);
     }
 }
 
 int main(int argc, char* argv[]) {
 
-    int fd_sckt_srvr = -1, _ret_val;
+    if(argc != 2 || argv == NULL) {
+        perror(" bad argument list, port number is missing");
+        exit(EXIT_FAILURE);
+    }
 
-    _ret_val = init_server(&fd_sckt_srvr, default_server_address);
+    int fd_sckt_srvr = -1, _ret_val;
+    int port_number = atoi(argv[1]);
+    default_server_address.sin_port = htons(port_number);
+    _ret_val = init_server(&fd_sckt_srvr, default_server_address, port_number);
     if(_ret_val < 0 || fd_sckt_srvr < 0) {
         perror("server init setup failed : ");
-        exit(EXIT_ERROR_CODE);
+        exit(EXIT_FAILURE);
     }
+
 
     start_server(default_server_address, fd_sckt_srvr);
 

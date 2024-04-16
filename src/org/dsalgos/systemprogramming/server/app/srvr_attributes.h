@@ -17,5 +17,4 @@
 struct sockaddr_in default_server_address = {
         .sin_family = AF_INET,
         .sin_addr.s_addr = INADDR_ANY,
-        .sin_port = htons(DEFAULT_PORT),
 };
