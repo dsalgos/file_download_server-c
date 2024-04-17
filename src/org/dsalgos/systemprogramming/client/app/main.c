@@ -13,6 +13,7 @@
 
 #define MAX_ARGS 10
 
+char last_msg[4]="7@5!";
 char command[];
 char *args[MAX_ARGS];
 void (*existing_handler)();
@@ -21,8 +22,10 @@ void tokenize(char *input){
     int num_args = 0;
     char *token = strtok(input, " ");
     strcpy(command, token);
+    printf("Command: %s\n", command);
     char *arg = strtok(NULL, " ");
     while (arg != NULL && num_args < MAX_ARGS) {
+        printf("Argument: %s\n", arg);
         args[num_args] = arg;
         arg = strtok(NULL, " ");
         num_args++;
@@ -80,9 +83,9 @@ int is_arg_number(const char *number_str) {
 
 int verify_input(){
     if (strcmp(command, "dirlist") == 0){
-        if(strcmp(args[0], "-a")) {
+        if(strcmp(args[0], "-a") == 0) {
             return 0;
-        } else if(strcmp(args[0], "-t")) {
+        } else if(strcmp(args[0], "-t") == 0) {
             return 0;
         } else {
             return -1;
@@ -111,9 +114,11 @@ int verify_input(){
             return -1;
         }
         return 0;
-    } else if (strcmp(command, "w24fd") == 0) {
+    } else if (strcmp(command, "w24fdb") == 0) {
+        printf(" comes before...\n");
         return(validate_date(args[0]));
-    } else if (strcmp(command, "w24fa") == 0) {
+    } else if (strcmp(command, "w24fda") == 0) {
+        printf(" comes after...\n");
         return(validate_date(args[0]));
     } else if (strcmp(command, "quit") == 0) {
         signal(SIGINT, existing_handler);
@@ -159,13 +164,14 @@ int main() {
     char spl_char;
     char buffer[1024];
     char buffer_copy[1024];
+    char response_t[4];
     int server_socket;
     int command_verification;
     int bytesReceived;
     struct sockaddr_in servAddr;
     int srvr_list[] = {8080, 8090,9000, 9010, 9020};
     int counter = 0;
-    existing_handler = signal(SIGINT,SIG_IGN);
+//    existing_handler = signal(SIGINT,SIG_IGN);
     start:
     if ((server_socket= socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
@@ -185,12 +191,12 @@ int main() {
     }
 
 //    read(server_socket, buffer, 3);
-    char busy[5];
-    int n_bytes = recv(server_socket, busy, sizeof(busy) - 1, 0);
-    busy[n_bytes] = '\0';
-    printf(" received msg : %s", busy);
-    if (strcmp(busy, "BUSY") == 0){
-        printf("received from server %s", busy);
+
+    int n_bytes = recv(server_socket, response_t, sizeof(response_t) - 1, 0);
+    response_t[n_bytes] = '\0';
+    printf(" received msg : %s\n", response_t);
+    if (strcmp(response_t, "BSY") == 0){
+        printf("received from server %s", response_t);
         //current server is busy try the next one
         n_bytes = recv(server_socket, buffer, sizeof(buffer) - 1, 0);
         buffer[n_bytes] = '\0';
@@ -202,22 +208,28 @@ int main() {
     while (1) {
             printf("client$ ");
             memset(buffer, 0, sizeof(buffer));
+
             fgets(buffer, 1024, stdin);
             buffer[strcspn(buffer, "\n")] = '\0';
             strcpy(buffer_copy, buffer);
-
+            if(strlen(buffer) == 0){
+              printf("There has been an issue with the server. Please reconnect ....\n");
+              break;
+            }
             tokenize(buffer);
             command_verification = verify_input();
-
+            printf(" verification : %d\n", command_verification);
             if(command_verification == 0){
+                printf("Buffer: %s\n", buffer_copy);
                 send(server_socket,buffer_copy, strlen(buffer_copy),0);
 
                 memset(buffer, 0, sizeof(buffer));
+                memset(response_t, 0, sizeof(response_t));
+                int r_bytes = recv(server_socket, response_t, sizeof(response_t)-1, 0);
+                response_t[r_bytes] = '\0';
+                printf("Received Response:\n%s\n", response_t);
 
-                read(server_socket, buffer, 1024);
-                printf("Received Response:\n%s\n", buffer);
-
-                if(strcmp(buffer, "TAR") == 0){
+                if(strcmp(response_t, "TAR") == 0){
                     int fileDescriptor = open("temp.tar.gz", O_WRONLY | O_CREAT | O_TRUNC, 0777);
 
                     printf("Receiving the file ....\n");
@@ -230,16 +242,35 @@ int main() {
                     printf("File received\n");
 
                     close(fileDescriptor);
-                } else if(strcmp(buffer, "TXT") == 0){
-                    while((bytesReceived = read(server_socket, buffer, 1024)) > 0){
+                } else if(strcmp(response_t, "TXT") == 0) {
+                    printf("parsing text response\n");
+                    bytesReceived = recv(server_socket, buffer, sizeof(buffer)-1, 0);
+                    while(bytesReceived > 0){
+                        buffer[bytesReceived] = '\0';
+                        char* msg_end_rcvd = strdup(buffer+ (bytesReceived - 4));
+                        if(strcmp(msg_end_rcvd, last_msg) == 0) {
+                            buffer[bytesReceived-4] = '\0';
+                            if(bytesReceived > (strlen(last_msg)+1)) {
+                                printf("%s", buffer);
+                            }
+                            free(msg_end_rcvd);
+                            break;
+                        }
                         printf("%s", buffer);
+                        free(msg_end_rcvd);
                         memset(buffer, 0, sizeof(buffer));
+                        bytesReceived = recv(server_socket, buffer, sizeof(buffer) - 1, 0);
+
                     }
                 } else if(strcmp(buffer, "ERR") == 0){
                     //ERROR HANDLING
                 }
-            } else if(command_verification == 9){
-                break;
+            } else if(command_verification == 9) {
+                send(server_socket,buffer_copy, strlen(buffer_copy),0);
+                memset(buffer, 0, sizeof(buffer));
+                close(server_socket);
+                printf("Connection is closed.\n");
+                exit(EXIT_SUCCESS);
             }
         }
 

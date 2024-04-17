@@ -47,11 +47,12 @@ const char* CMD_FILE_SRCH_EXT = "w24ft";
 const char* CMD_FILE_SRCH_DATE_BF = "w24fdb";
 const char* CMD_FILE_SRCH_DATE_DA = "w24fda";
 const char* CMD_CLIENT_QUIT = "quit";
-const char* MSG_RES_REDIRECT = "BUSY";
+const char* MSG_RES_REDIRECT = "BSY";
 const char* MSG_RES_SERVER = "RESPONSE :\n";
 const char* MSG_RES_SERVER_404 = "File not found.\n";
 const char* MSG_RES_SERVER_INVALID_COMMAND = "Invalid command\n";
 const char* MSG_RES_SERVER_ERR = " Server encountered an error.\n";
+const char* LAST_MSG_END = "7@5!";
 
 void handle_listdir_rqst(int fd, const char* command, char*** response);
 void handle_fs_name(int fd, char** rqst);
@@ -70,7 +71,7 @@ int init_server(int *fd_server, struct sockaddr_in address_srvr, int port);
 
 //integer return
 void process_request(int fd_clnt_sckt);
-int send_msg_chars(int fd_sckt, char** msg);
+int send_msg_chars(int fd_sckt, char** msg, int msg_count);
 
 int bind_address();
 int listen_sckt();
@@ -83,7 +84,7 @@ int listen_sckt();
  */
 void send_msg(int fd_clnt_sckt, const char* msg) {
     if(msg != NULL) {
-        if (write(fd_clnt_sckt, msg, strlen(msg)) < 0) {
+        if (send(fd_clnt_sckt, msg, strlen(msg), 0) < 0) {
             perror("Error : ");
         }
     }
@@ -215,7 +216,7 @@ void handle_listdir_rqst(int fd, const char* command, char*** response) {
             printf("copied directory is %s", (*response)[i]);
         }
         send_msg(fd, "TXT");
-        send_msg_chars(fd, *response);
+        send_msg_chars(fd, *response, count_dir);
     } else {
         send_msg(fd, MSG_RES_SERVER_404);
     }
@@ -241,6 +242,7 @@ void handle_fs_name(int fd_clnt_sckt, char** rqst) {
     if(fs_details_res != NULL) {
         send_msg(fd_clnt_sckt, "TXT");
 
+
         ssize_t error = 0;
         error = write(fd_clnt_sckt, MSG_RES_SERVER, strlen(MSG_RES_SERVER)) < 0 ? -1 : error;
         error = write(fd_clnt_sckt, fs_details->f_name, strlen(fs_details->f_name)) < 0 ? -1 : error;
@@ -250,7 +252,7 @@ void handle_fs_name(int fd_clnt_sckt, char** rqst) {
         error = write(fd_clnt_sckt, fs_details->f_mode, strlen(fs_details->f_mode)) < 0 ? -1 : error;
         error = write(fd_clnt_sckt, C_NEW_LINE, sizeof(char)) < 0 ? -1 : error;
         error = write(fd_clnt_sckt, fs_details->f_ctime, strlen(fs_details->f_ctime)) < 0 ? -1 : error;
-
+        send(fd_clnt_sckt, LAST_MSG_END, strlen(LAST_MSG_END), 0);
 
         if (error != 0) {
             perror("Error while sending file details using name ");
@@ -269,6 +271,7 @@ void handle_fs_name(int fd_clnt_sckt, char** rqst) {
 int get_request(int fd_client, char* rqst, size_t sz_rqst) {
 
     ssize_t n_rb = read(fd_client, rqst, sz_rqst);
+    printf("PRITHVI RQST: %s\n", rqst);
     if(n_rb <=0) {
         return -1;
     }
@@ -277,6 +280,7 @@ int get_request(int fd_client, char* rqst, size_t sz_rqst) {
 }
 
 void handle_fs_size(int fd, char** rqst, int n_args) {
+    printf("n args : %d,   %d   %d \n", n_args, is_number(rqst[1]), is_number(rqst[1]));
     if(n_args < 3 || !is_number(rqst[1]) || !is_number(rqst[2])) {
         perror("Invalid arguments to search for file using size");
         return;
@@ -308,19 +312,31 @@ void handle_fs_ext(int fd, char** rqst, int n_args) {
         return;
     }
 
+    char *ext[3];
+    memset(ext, 0, sizeof(ext));
+    for(int i = 0; i < n_args-1; i++) {
+        ext[i] = strdup(rqst[i+1]);
+    }
+
+
     char* path_to_tar;
     char* dir_home = expand_if_tilda("~");
 //    for(int i=1; i<n_args; i++){
-        path_to_tar = f_extension_search("/Users/anujp/Downloads/ASP", "/Users/anujp/Downloads/tempstore/", rqst[1], n_args);
+        path_to_tar = f_extension_search("/Users/anujp/Downloads/ASP", "/Users/anujp/Downloads/tempstore/", ext, n_args);
 //    }
     printf("Tar path: %s\n", path_to_tar);
 
     write(fd, "TAR", 3);
 
     send_tar_to_client(fd, path_to_tar);
+    for(int i = 0; i < 3 && ext[i] != NULL; i++) {
+        free(ext[i]);
+    }
+
 }
 
 void handle_fs_date(int fd, char** rqst, int n_args, int dt_cmp) {
+    printf(" searchign with date %s\n", rqst[1]);
     char* dir_home = expand_if_tilda("~");
 
     char* dir = "/Users/anujp/Downloads/ASP";
@@ -348,15 +364,16 @@ void handle_fs_date(int fd, char** rqst, int n_args, int dt_cmp) {
  * @param msg
  * @return
  */
-int send_msg_chars(int fd_sckt, char** msg) {
-    for(int i=0; msg[i] != NULL; i++) {
+int send_msg_chars(int fd_sckt, char** msg, int msg_count) {
+    for(int i=0; i < msg_count; i++) {
 
-        if((write(fd_sckt, msg[i], strlen(msg[i]))) < 0) {
+        if((send(fd_sckt, msg[i], strlen(msg[i]), 0)) < 0) {
             perror("write failed ");
             return -1;
         }
     }
-
+    printf("done with sending the data...");
+    send(fd_sckt, LAST_MSG_END, strlen(LAST_MSG_END), 0);
     return 0;
 }
 
@@ -370,13 +387,14 @@ void process_request(int fd_clnt_sckt) {
 
     while(1) {
         char *rqst = malloc(sizeof(char) * MAX_BUFFER_RR_SIZE);
+        memset(rqst, 0, sizeof(*rqst));
         if (get_request(fd_clnt_sckt, rqst, MAX_BUFFER_RR_SIZE) < 0) {
             perror("error reading request");
         }
 
         int num_tokens;
         char **cmd_vector = tokenize(rqst, C_SPACE, &num_tokens);
-        if (cmd_vector == NULL || num_tokens < 2) {
+        if (cmd_vector == NULL || (strcmp(cmd_vector[0], CMD_CLIENT_QUIT) != 0 && num_tokens < 2)) {
             perror("error tokenizing request");
             send_msg(fd_clnt_sckt, MSG_RES_SERVER_ERR);
             continue;

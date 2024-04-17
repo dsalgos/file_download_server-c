@@ -50,7 +50,7 @@ char *d_storg_path = NULL;
 char *f_path_tracker = NULL;
 
 char* user_input_file_name =  NULL;
-char* usr_f_extension = NULL;
+char** usr_f_extension = NULL;
 struct fdetails* fs_details;
 
 //integer variables.
@@ -212,7 +212,7 @@ char* file_search_size(const char* root_path, char* storage_path, const int sz_m
  * @return
  */
 char* file_search_dt(const char* root_path, const char* storage_path, const char* date, int dt_cmp) {
-
+    printf(" searchign with date\n");
     //let's free up the memory to make sure there are no leaks.
     //don't want to take the risk of freeing up the same memory twice.
     //it's not recommended at all as it can lead to unidentified behavior.
@@ -324,7 +324,6 @@ int f_callback_name(const char *path_current, const struct stat *f_stat, int f_t
  * @return
  */
 int f_callback_extsn(const char *path_current, const struct stat *f_stat, int f_type, struct FTW *ptr_struct_ftw) {
-    printf("Test\n");
     if(f_type == FTW_F) {
         //use the base to find the current file name, add base to f_current address
         //FTW is a structure, where base is a member variable
@@ -335,9 +334,19 @@ int f_callback_extsn(const char *path_current, const struct stat *f_stat, int f_
         //in a char* where the file_name starts.
         const char *f_current = path_current + ptr_struct_ftw->base;
 
-        // for(int i=1; usr_f_extension[i]!=NULL; i++){
-        printf("extension: %s\n", usr_f_extension);
-        if(usr_f_extension != NULL && (extcmp(f_current, usr_f_extension) == 0)) {
+
+        int match_found = 0;
+        if(usr_f_extension != NULL ) {
+            for (int i = 0; i < 3; i++) {
+                if (usr_f_extension[i] != NULL && (extcmp(f_current, usr_f_extension[i]) == 0)) {
+                    printf("extension: %s\n", usr_f_extension[i]);
+                    match_found = 1;
+                    break;
+                }
+            }
+        }
+
+        if(match_found) {
             realpath(path_current, f_path_tracker);
             printf("\n%s %s ", "Search successful. Absolute path is - ", f_path_tracker);
 
@@ -488,7 +497,7 @@ void copy_file(const char* src_file, const char* dest_file) {
 }
 
 //print absolute path using nftw(), and callback() functions
-char* f_extension_search(const char* root_path, const char* storage_path, char *f_extension, int n_args) {
+char* f_extension_search(const char* root_path, const char* storage_path, char *f_extension[], int n_args) {
 
     //opening these fds just to make sure the paths exist
     //don't want to call nftw() with NULL values

@@ -221,15 +221,16 @@ char *ulong_to_string(unsigned long value) {
 }
 
 int is_number(char* str) {
+
     if(str == NULL) {
-        return -1;
+        return 0;
     }
 
     for(int i = 0; i < strlen(str); i++) {
         if(!isdigit(str[i])) {
-            return -1;
+            return 0;
         }
     }
 
-    return 0;
+    return 1;
 }

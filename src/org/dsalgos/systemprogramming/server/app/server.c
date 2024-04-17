@@ -29,7 +29,7 @@ void start_server(const struct sockaddr_in address_srvr, int fd_sckt_srvr) {
 
     // waiting for client
     printf("Waiting for client...\n");
-    // wait in infinite loop to accept the client input
+    // wait in infinite loop totoke is accept the client input
     while (1)
     {
 
@@ -46,12 +46,10 @@ void start_server(const struct sockaddr_in address_srvr, int fd_sckt_srvr) {
         {
             /// handle by server
             // sedn control message to client "CTS(Connected to server)"
-            char** msg = malloc(sizeof(char*));
-            msg[0] = "CTS";
-            send_msg_chars(fd_clnt_sckt, msg);
+            char msg[3] = "CTS";
+            send_msg(fd_clnt_sckt, msg);
 
             printf("New connection from client: %s...\n", inet_ntoa(address_srvr.sin_addr));
-            free(msg);
             /// fork a child and call process client func
             pid_t pid = fork();
             if (pid == 0)
